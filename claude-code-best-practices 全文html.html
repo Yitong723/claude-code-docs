@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code 文档 · 中英对照 · 最佳实践 &amp; 工作原理</title>
+<style>
+  :root{
+    --paper:#f4efe6; --ink:#2b2520; --soft:#6b6258; --line:#ddd2c2;
+    --accent:#b5562b; --accent2:#8a6d3b; --en:#3a6ea5; --codebg:#efe7d8; --codeink:#473b2c;
+    --panel:#fbf8f1; --shadow:rgba(60,45,25,.18);
+  }
+  html[data-theme="dark"]{
+    --paper:#1c1916; --ink:#e9e1d3; --soft:#a89c8a; --line:#3a342c;
+    --accent:#e0794a; --accent2:#cdab6e; --en:#7eb0e0; --codebg:#26221c; --codeink:#d9cdb6;
+    --panel:#23201a; --shadow:rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--paper); color:var(--ink); font-family:"Songti SC","Noto Serif CJK SC",Georgia,serif; -webkit-font-smoothing:antialiased; overflow:hidden}
+  header.bar{position:fixed; top:0; left:0; right:0; height:52px; z-index:30; display:flex; align-items:center; gap:14px; padding:0 16px; background:color-mix(in srgb,var(--panel) 88%,transparent); backdrop-filter:saturate(1.2) blur(8px); border-bottom:1px solid var(--line)}
+  .bar .title{font-size:14px; font-weight:600; letter-spacing:.3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .bar .title small{color:var(--soft); font-weight:400}
+  .bar .spacer{flex:1}
+  .bar button{font:inherit; font-size:13px; cursor:pointer; color:var(--ink); background:transparent; border:1px solid var(--line); border-radius:8px; padding:6px 11px; transition:.15s}
+  .bar button:hover{border-color:var(--accent); color:var(--accent)}
+  .bar button.on{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .pageind{font-size:12.5px; color:var(--soft); font-variant-numeric:tabular-nums; white-space:nowrap}
+  .progress{position:fixed; top:52px; left:0; height:3px; background:var(--accent); z-index:30; width:0; transition:width .2s}
+  #reader{position:absolute; top:55px; bottom:0; left:0; right:0; overflow-y:auto; scroll-behavior:smooth; padding:34px 22px 80px}
+  #reader::-webkit-scrollbar{width:10px}
+  #reader::-webkit-scrollbar-thumb{background:var(--line); border-radius:6px}
+  #content{max-width:760px; margin:0 auto}
+  .cover{max-width:760px; margin:0 auto 10px; padding:46px 30px 40px; text-align:center; border-bottom:2px solid var(--line)}
+  .cover .kicker{color:var(--accent); letter-spacing:3px; font-size:12px}
+  .cover h1{font-size:32px; line-height:1.3; margin:14px 0 6px}
+  .cover p{color:var(--soft); margin:4px 0; font-size:15px}
+  .cover .hint{margin-top:22px; font-size:12.5px; color:var(--soft); line-height:2}
+  .cover .hint kbd{font-family:ui-monospace,Menlo,monospace; font-size:11px; background:var(--codebg); border:1px solid var(--line); border-bottom-width:2px; border-radius:5px; padding:1px 6px; margin:0 2px; color:var(--codeink)}
+
+  /* 对照块 */
+  .pair{margin:.2em 0 1.1em; padding-left:14px; border-left:2px solid color-mix(in srgb,var(--en) 35%,transparent)}
+  .pair .en{font-family:"Iowan Old Style",Georgia,serif; color:var(--soft); font-size:15px; line-height:1.62}
+  .pair .en p{margin:.2em 0}
+  .pair .zh{color:var(--ink); margin-top:.15em}
+  .pair .zh p{margin:.2em 0}
+  body.zh-only .pair .en{display:none}
+  body.zh-only .pair{border-left-color:transparent; padding-left:0}
+  body.en-only .pair .zh{display:none}
+  body.en-only .pair .en{color:var(--ink); font-size:16.5px; line-height:1.72}
+  body.en-only .pair{border-left-color:transparent; padding-left:0}
+
+  .both{margin:1em 0}                 /* 代码等中英一致的块，只显示一份 */
+
+  /* 标题对照：取消左边框，做成标题样式 */
+  .pair.head{border-left:none; padding-left:0; margin:1.6em 0 .5em}
+  .pair.head .en{font-family:"Iowan Old Style",Georgia,serif}
+  .pair.head .en :is(h1,h2,h3,h4){color:var(--en); opacity:.85}
+  .pair.head .zh :is(h1,h2,h3,h4){margin-top:.1em}
+
+  h1{font-size:27px; line-height:1.35; margin:.2em 0}
+  h2{font-size:21px; margin:.2em 0; color:var(--accent)}
+  .pair.head .en h2{color:var(--en)}
+  h3{font-size:17px; margin:.2em 0; color:var(--accent2)}
+  .pair.head .en h3{color:var(--en)}
+  h4{font-size:15px; margin:.2em 0; font-weight:700}
+  p{font-size:16.5px; line-height:1.8}
+  li{line-height:1.7; margin:.25em 0}
+  ul,ol{padding-left:1.4em; margin:.4em 0}
+  a{color:var(--accent); text-decoration:none; border-bottom:1px solid color-mix(in srgb,var(--accent) 40%,transparent)}
+  .pair .en a{color:var(--en); border-bottom-color:color-mix(in srgb,var(--en) 40%,transparent)}
+  a:hover{border-bottom-color:currentColor}
+  strong{color:inherit; font-weight:700}
+  code{font-family:ui-monospace,Menlo,monospace; font-size:.84em; background:var(--codebg); color:var(--codeink); padding:1.5px 5px; border-radius:5px}
+  pre.code{background:var(--codebg); color:var(--codeink); border:1px solid var(--line); border-radius:10px; padding:13px 15px; overflow-x:auto; margin:.6em 0; line-height:1.55}
+  pre.code code{background:none; padding:0; font-size:13px}
+  blockquote{margin:.4em 0; padding:.4em 1em; border-left:3px solid var(--accent2); background:color-mix(in srgb,var(--accent2) 9%,transparent); border-radius:0 8px 8px 0}
+  blockquote p{margin:.3em 0; font-size:15px}
+  hr{border:none; border-top:1px dashed var(--line); margin:1.6em 0}
+  table{border-collapse:collapse; width:100%; margin:.6em 0; font-size:13.5px; display:block; overflow-x:auto}
+  th,td{border:1px solid var(--line); padding:7px 10px; text-align:left; vertical-align:top; line-height:1.6}
+  th{background:var(--codebg); font-weight:700}
+  .section-end{height:30vh}
+  .nav{position:fixed; right:22px; bottom:26px; z-index:30; display:flex; flex-direction:column; gap:8px}
+  .nav button{width:46px; height:46px; border-radius:50%; cursor:pointer; font-size:18px; background:var(--panel); color:var(--ink); border:1px solid var(--line); box-shadow:0 4px 14px var(--shadow); transition:.15s}
+  .nav button:hover{color:var(--accent); border-color:var(--accent); transform:translateY(-1px)}
+  #toc{position:fixed; top:0; bottom:0; left:0; width:330px; max-width:84vw; z-index:40; background:var(--panel); border-right:1px solid var(--line); box-shadow:6px 0 24px var(--shadow); transform:translateX(-105%); transition:transform .25s ease; overflow-y:auto; padding:18px 6px 40px}
+  #toc.open{transform:none}
+  #toc h3{margin:8px 14px 6px; font-size:12px; letter-spacing:1.5px; color:var(--soft)}
+  #toc a{display:block; color:var(--ink); text-decoration:none; padding:6px 14px; font-size:13.5px; border-radius:7px; line-height:1.45; border:none}
+  #toc a:hover{background:var(--codebg)}
+  #toc a.h1{font-weight:700; font-size:14.5px; margin-top:6px; color:var(--accent)}
+  #toc a.h2{padding-left:22px}
+  #toc a small{color:var(--soft); font-size:11.5px}
+  #scrim{position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:35; opacity:0; pointer-events:none; transition:.25s}
+  #scrim.show{opacity:1; pointer-events:auto}
+  @media (max-width:560px){ .bar .title small{display:none} }
+</style>
+</head>
+<body>
+<header class="bar">
+  <button id="tocBtn" title="目录">☰ 目录</button>
+  <div class="title">Claude Code 文档 <small>· 中英对照</small></div>
+  <div class="spacer"></div>
+  <button id="modeBtn" title="切换：对照 / 仅中 / 仅英">对照</button>
+  <span class="pageind" id="pageind">第 1 / 1 页</span>
+  <button id="themeBtn" title="切换深浅色">◑</button>
+</header>
+<div class="progress" id="progress"></div>
+
+<nav id="toc"><h3>目录 · CONTENTS</h3><div id="tocList"></div></nav>
+<div id="scrim"></div>
+
+<main id="reader">
+  <div class="cover">
+    <div class="kicker">code.claude.com/docs · 中英对照</div>
+    <h1>Claude Code 文档（一段英文 · 一段中文）</h1>
+    <p>① Best practices for Claude Code / 最佳实践</p>
+    <p>② How Claude Code works / 如何工作（基础概念）</p>
+    <p class="hint">
+      <kbd>↓</kbd><kbd>空格</kbd> 下一页　<kbd>↑</kbd> 上一页　<kbd>PgDn</kbd>/<kbd>PgUp</kbd> 翻页<br>
+      顶栏「对照」按钮可切换 <b>对照 / 仅中文 / 仅英文</b>；「目录」跳章节；◑ 切换深浅色
+    </p>
+  </div>
+  <article id="content"></article>
+  <div class="section-end"></div>
+</main>
+
+<div class="nav">
+  <button id="prevBtn" title="上一页 (↑)">▲</button>
+  <button id="nextBtn" title="下一页 (↓)">▼</button>
+</div>
+
+<!-- ===== 英文原文 ===== -->
+<script type="text/markdown" id="en-best">
+# Best practices for Claude Code
+
+> Tips and patterns for getting the most out of Claude Code, from configuring your environment to scaling across parallel sessions.
+
+Claude Code is an agentic coding environment. Unlike a chatbot that answers questions and waits, Claude Code can read your files, run commands, make changes, and autonomously work through problems while you watch, redirect, or step away entirely.
+
+This changes how you work. Instead of writing code yourself and asking Claude to review it, you describe what you want and Claude figures out how to build it. Claude explores, plans, and implements.
+
+But this autonomy still comes with a learning curve. Claude works within certain constraints you need to understand.
+
+This guide covers patterns that have proven effective across Anthropic's internal teams and for engineers using Claude Code across various codebases, languages, and environments. For how the agentic loop works under the hood, see How Claude Code works.
+
+***
+
+Most best practices are based on one constraint: Claude's context window fills up fast, and performance degrades as it fills.
+
+Claude's context window holds your entire conversation, including every message, every file Claude reads, and every command output. However, this can fill up fast. A single debugging session or codebase exploration might generate and consume tens of thousands of tokens.
+
+This matters since LLM performance degrades as context fills. When the context window is getting full, Claude may start "forgetting" earlier instructions or making more mistakes. The context window is the most important resource to manage.
+
+***
+
+## Give Claude a way to verify its work
+
+> Give Claude a check it can run: tests, a build, a screenshot to compare. It's the difference between a session you watch and one you walk away from.
+
+Claude stops when the work looks done. Without a check it can run, "looks done" is the only signal available, and you become the verification loop: every mistake waits for you to notice it. Give Claude something that produces a pass or fail, and the loop closes on its own. Claude does the work, runs the check, reads the result, and iterates until the check passes.
+
+The check is anything that returns a signal Claude can read in the conversation: a test suite, a build exit code, a linter, a script that diffs output against a fixture, or a browser screenshot compared against a design.
+
+Once the check exists, decide how hard it gates the stop:
+
+* **In one prompt**: ask Claude to run the check and iterate in the same message.
+* **Across a session**: set the check as a `/goal` condition. A separate evaluator re-checks it after every turn and Claude keeps working until it holds.
+* **As a deterministic gate**: a Stop hook runs your check as a script and blocks the turn from ending until it passes. Claude Code overrides the hook and ends the turn after 8 consecutive blocks.
+* **By a second opinion**: a verification subagent or a dynamic workflow that checks its own findings has a fresh model try to refute the result, so the agent doing the work isn't the one grading it.
+
+Have Claude show evidence rather than asserting success: the test output, the command it ran and what it returned, or a screenshot of the result. Reviewing evidence is faster than re-running the verification yourself, and it works for sessions you weren't watching.
+
+***
+
+## Explore first, then plan, then code
+
+> Separate research and planning from implementation to avoid solving the wrong problem.
+
+Letting Claude jump straight to coding can produce code that solves the wrong problem. Use plan mode to separate exploration from execution.
+
+The recommended workflow has four phases:
+
+#### Explore
+
+Enter plan mode. Claude reads files and answers questions without making changes.
+
+```txt
+read /src/auth and understand how we handle sessions and login.
+also look at how we manage environment variables for secrets.
+```
+
+#### Plan
+
+Ask Claude to create a detailed implementation plan.
+
+```txt
+I want to add Google OAuth. What files need to change?
+What's the session flow? Create a plan.
+```
+
+Press `Ctrl+G` to open the plan in your text editor for direct editing before Claude proceeds.
+
+#### Implement
+
+Switch out of plan mode and let Claude code, verifying against its plan.
+
+```txt
+implement the OAuth flow from your plan. write tests for the
+callback handler, run the test suite and fix any failures.
+```
+
+#### Commit
+
+Ask Claude to commit with a descriptive message and create a PR.
+
+```txt
+commit with a descriptive message and open a PR
+```
+
+> Plan mode is useful, but also adds overhead. For tasks where the scope is clear and the fix is small (like fixing a typo, adding a log line, or renaming a variable) ask Claude to do it directly. Planning is most useful when you're uncertain about the approach, when the change modifies multiple files, or when you're unfamiliar with the code being modified. If you could describe the diff in one sentence, skip the plan.
+
+***
+
+## Provide specific context in your prompts
+
+> The more precise your instructions, the fewer corrections you'll need.
+
+Claude can infer intent, but it can't read your mind. Reference specific files, mention constraints, and point to example patterns.
+
+When you're exploring and can afford to course-correct, vague prompts can be useful. A prompt like `"what would you improve in this file?"` can surface things you wouldn't have thought to ask about.
+
+### Provide rich content
+
+> Use `@` to reference files, paste screenshots/images, or pipe data directly.
+
+You can provide rich data to Claude in several ways:
+
+* **Reference files with `@`** instead of describing where code lives. Claude reads the file before responding.
+* **Paste images directly**. Copy/paste or drag and drop images into the prompt.
+* **Give URLs** for documentation and API references. Use `/permissions` to allowlist frequently-used domains.
+* **Pipe in data** by running `cat error.log | claude` to send file contents directly.
+* **Let Claude fetch what it needs**. Tell Claude to pull context itself using Bash commands, MCP tools, or by reading files.
+
+***
+
+## Configure your environment
+
+A few setup steps make Claude Code significantly more effective across all your sessions.
+
+### Write an effective CLAUDE.md
+
+> Run `/init` to generate a starter CLAUDE.md file based on your current project structure, then refine over time.
+
+CLAUDE.md is a special file that Claude reads at the start of every conversation. Include Bash commands, code style, and workflow rules. This gives Claude persistent context it can't infer from code alone.
+
+The `/init` command analyzes your codebase to detect build systems, test frameworks, and code patterns, giving you a solid foundation to refine.
+
+There's no required format for CLAUDE.md files, but keep it short and human-readable. For example:
+
+```markdown
+# Code style
+- Use ES modules (import/export) syntax, not CommonJS (require)
+- Destructure imports when possible (eg. import { foo } from 'bar')
+
+# Workflow
+- Be sure to typecheck when you're done making a series of code changes
+- Prefer running single tests, and not the whole test suite, for performance
+```
+
+CLAUDE.md is loaded every session, so only include things that apply broadly. For domain knowledge or workflows that are only relevant sometimes, use skills instead. Claude loads them on demand without bloating every conversation.
+
+Keep it concise. For each line, ask: *"Would removing this cause Claude to make mistakes?"* If not, cut it. Bloated CLAUDE.md files cause Claude to ignore your actual instructions!
+
+You can tune instructions by adding emphasis (e.g., "IMPORTANT" or "YOU MUST") to improve adherence. Check CLAUDE.md into git so your team can contribute. The file compounds in value over time.
+
+You can place CLAUDE.md files in several locations:
+
+* **Home folder (`~/.claude/CLAUDE.md`)**: applies to all Claude sessions
+* **Project root (`./CLAUDE.md`)**: check into git to share with your team
+* **Project root (`./CLAUDE.local.md`)**: personal project-specific notes; add this file to your `.gitignore` so it isn't shared with your team
+* **Parent directories**: useful for monorepos where both `root/CLAUDE.md` and `root/foo/CLAUDE.md` are pulled in automatically
+* **Child directories**: Claude pulls in child CLAUDE.md files on demand when it reads a file in those directories
+
+### Configure permissions
+
+> Use auto mode to let a classifier handle approvals, `/permissions` to allowlist specific commands, or `/sandbox` for OS-level isolation. Each reduces interruptions while keeping you in control.
+
+By default, Claude Code requests permission for actions that might modify your system: file writes, Bash commands, MCP tools, etc. This is safe but tedious. There are three ways to reduce these interruptions:
+
+* **Auto mode**: a separate classifier model reviews commands and blocks only what looks risky: scope escalation, unknown infrastructure, or hostile-content-driven actions. Best when you trust the general direction of a task but don't want to click through every step
+* **Permission allowlists**: permit specific tools you know are safe, like `npm run lint` or `git commit`
+* **Sandboxing**: enable OS-level isolation that restricts filesystem and network access, allowing Claude to work more freely within defined boundaries
+
+### Use CLI tools
+
+> Tell Claude Code to use CLI tools like `gh`, `aws`, `gcloud`, and `sentry-cli` when interacting with external services.
+
+CLI tools are the most context-efficient way to interact with external services. If you use GitHub, install the `gh` CLI. Claude knows how to use it for creating issues, opening pull requests, and reading comments. Without `gh`, Claude can still use the GitHub API, but unauthenticated requests often hit rate limits.
+
+### Connect MCP servers
+
+> Run `claude mcp add` to connect external tools like Notion, Figma, or your database.
+
+With MCP servers, you can ask Claude to implement features from issue trackers, query databases, analyze monitoring data, integrate designs from Figma, and automate workflows.
+
+### Set up hooks
+
+> Use hooks for actions that must happen every time with zero exceptions.
+
+Hooks run scripts automatically at specific points in Claude's workflow. Unlike CLAUDE.md instructions which are advisory, hooks are deterministic and guarantee the action happens.
+
+### Create skills
+
+> Create `SKILL.md` files in `.claude/skills/` to give Claude domain knowledge and reusable workflows.
+
+Skills extend Claude's knowledge with information specific to your project, team, or domain. Claude applies them automatically when relevant, or you can invoke them directly with `/skill-name`.
+
+### Create custom subagents
+
+> Define specialized assistants in `.claude/agents/` that Claude can delegate to for isolated tasks.
+
+Subagents run in their own context with their own set of allowed tools. They're useful for tasks that read many files or need specialized focus without cluttering your main conversation.
+
+### Install plugins
+
+> Run `/plugin` to browse the marketplace. Plugins add skills, tools, and integrations without configuration.
+
+Plugins bundle skills, hooks, subagents, and MCP servers into a single installable unit from the community and Anthropic. If you work with a typed language, install a code intelligence plugin to give Claude precise symbol navigation and automatic error detection after edits.
+
+***
+
+## Communicate effectively
+
+The way you communicate with Claude Code significantly impacts the quality of results.
+
+### Ask codebase questions
+
+> Ask Claude questions you'd ask a senior engineer.
+
+When onboarding to a new codebase, use Claude Code for learning and exploration. You can ask Claude the same sorts of questions you would ask another engineer:
+
+* How does logging work?
+* How do I make a new API endpoint?
+* What does `async move { ... }` do on line 134 of `foo.rs`?
+* What edge cases does `CustomerOnboardingFlowImpl` handle?
+* Why does this code call `foo()` instead of `bar()` on line 333?
+
+Using Claude Code this way is an effective onboarding workflow, improving ramp-up time and reducing load on other engineers. No special prompting required: ask questions directly.
+
+### Let Claude interview you
+
+> For larger features, have Claude interview you first. Start with a minimal prompt and ask Claude to interview you using the `AskUserQuestion` tool.
+
+Claude asks about things you might not have considered yet, including technical implementation, UI/UX, edge cases, and tradeoffs.
+
+Once the spec is complete, start a fresh session to execute it. The new session has clean context focused entirely on implementation, and you have a written spec to reference.
+
+***
+
+## Manage your session
+
+Conversations are persistent and reversible. Use this to your advantage!
+
+### Course-correct early and often
+
+> Correct Claude as soon as you notice it going off track.
+
+The best results come from tight feedback loops. Though Claude occasionally solves problems perfectly on the first attempt, correcting it quickly generally produces better solutions faster.
+
+* **`Esc`**: stop Claude mid-action with the `Esc` key. Context is preserved, so you can redirect.
+* **`Esc + Esc` or `/rewind`**: press `Esc` twice or run `/rewind` to open the rewind menu and restore previous conversation and code state, or summarize from a selected message.
+* **`"Undo that"`**: have Claude revert its changes.
+* **`/clear`**: reset context between unrelated tasks. Long sessions with irrelevant context can reduce performance.
+
+If you've corrected Claude more than twice on the same issue in one session, the context is cluttered with failed approaches. Run `/clear` and start fresh with a more specific prompt that incorporates what you learned. A clean session with a better prompt almost always outperforms a long session with accumulated corrections.
+
+### Manage context aggressively
+
+> Run `/clear` between unrelated tasks to reset context.
+
+Claude Code automatically compacts conversation history when you approach context limits, which preserves important code and decisions while freeing space.
+
+### Use subagents for investigation
+
+> Delegate research with `"use subagents to investigate X"`. They explore in a separate context, keeping your main conversation clean for implementation.
+
+Since context is your fundamental constraint, subagents are one of the most powerful tools available. When Claude researches a codebase it reads lots of files, all of which consume your context. Subagents run in separate context windows and report back summaries.
+
+### Rewind with checkpoints
+
+> Every prompt you send creates a checkpoint. You can restore conversation, code, or both to any previous checkpoint.
+
+Claude automatically snapshots files before each change so a checkpoint can restore them. Double-tap `Escape` or run `/rewind` to open the rewind menu. You can restore conversation only, restore code only, restore both, or summarize from a selected message.
+
+> Checkpoints only track changes made *by Claude*, not external processes. This isn't a replacement for git.
+
+### Resume conversations
+
+> Name sessions with `/rename` and treat them like branches: each workstream gets its own persistent context.
+
+Claude Code saves conversations locally, so when a task spans multiple sittings you don't have to re-explain the context. Run `claude --continue` to pick up the most recent session, or `claude --resume` to choose from a list. Give sessions descriptive names like `oauth-migration` so you can find them later.
+
+***
+
+## Automate and scale
+
+Once you're effective with one Claude, multiply your output with parallel sessions, non-interactive mode, and fan-out patterns.
+
+Everything so far assumes one human, one Claude, and one conversation. But Claude Code scales horizontally. The techniques in this section show how you can get more done.
+
+### Run non-interactive mode
+
+> Use `claude -p "prompt"` in CI, pre-commit hooks, or scripts. Add `--output-format stream-json --verbose` for streaming JSON output.
+
+With `claude -p "your prompt"`, you can run Claude non-interactively, without a session. Non-interactive mode is how you integrate Claude into CI pipelines, pre-commit hooks, or any automated workflow. The output formats let you parse results programmatically: plain text, JSON, or streaming JSON.
+
+### Run multiple Claude sessions
+
+> Run multiple Claude sessions in parallel to speed up development, run isolated experiments, or start complex workflows.
+
+Pick the parallel approach that fits how much coordination you want to do yourself:
+
+* **Worktrees**: run separate CLI sessions in isolated git checkouts so edits don't collide
+* **Desktop app**: manage multiple local sessions visually, each in its own worktree
+* **Claude Code on the web**: run sessions on Anthropic-managed cloud infrastructure in isolated VMs
+* **Agent teams**: automated coordination of multiple sessions with shared tasks, messaging, and a team lead
+
+Beyond parallelizing work, multiple sessions enable quality-focused workflows. A fresh context improves code review since Claude won't be biased toward code it just wrote.
+
+### Run autonomously with auto mode
+
+For uninterrupted execution with background safety checks, use auto mode. A classifier model reviews commands before they run, blocking scope escalation, unknown infrastructure, and hostile-content-driven actions while letting routine work proceed without prompts.
+
+### Add an adversarial review step
+
+> Before treating a task as done, have a subagent review the diff in a fresh context and report gaps.
+
+The longer Claude works unattended, the more an independent check matters before you count the work as done. A reviewer running in a fresh subagent context sees only the diff and the criteria you give it, not the reasoning that produced the change, so it evaluates the result on its own terms.
+
+> A reviewer prompted to find gaps will usually report some, even when the work is sound, because that is what it was asked to do. Chasing every finding leads to over-engineering: extra abstraction layers, defensive code, and tests for cases that can't happen. Tell the reviewer to flag only gaps that affect correctness or the stated requirements, and treat the rest as optional.
+
+***
+
+## Avoid common failure patterns
+
+These are common mistakes. Recognizing them early saves time:
+
+* **The kitchen sink session.** You start with one task, then ask Claude something unrelated, then go back to the first task. Context is full of irrelevant information. **Fix**: `/clear` between unrelated tasks.
+* **Correcting over and over.** Claude does something wrong, you correct it, it's still wrong, you correct again. Context is polluted with failed approaches. **Fix**: After two failed corrections, `/clear` and write a better initial prompt incorporating what you learned.
+* **The over-specified CLAUDE.md.** If your CLAUDE.md is too long, Claude ignores half of it because important rules get lost in the noise. **Fix**: Ruthlessly prune.
+* **The trust-then-verify gap.** Claude produces a plausible-looking implementation that doesn't handle edge cases. **Fix**: Always provide verification (tests, scripts, screenshots). If you can't verify it, don't ship it.
+* **The infinite exploration.** You ask Claude to "investigate" something without scoping it. Claude reads hundreds of files, filling the context. **Fix**: Scope investigations narrowly or use subagents.
+
+***
+
+## Develop your intuition
+
+The patterns in this guide aren't set in stone. They're starting points that work well in general, but might not be optimal for every situation.
+
+Pay attention to what works. When Claude produces great output, notice what you did: the prompt structure, the context you provided, the mode you were in. When Claude struggles, ask why. Was the context too noisy? The prompt too vague? The task too big for one pass?
+
+Over time, you'll develop intuition that no guide can capture. You'll know when to be specific and when to be open-ended, when to plan and when to explore, when to clear context and when to let it accumulate.
+</script>
+
+<!-- ===== 中文原文 ===== -->
+<script type="text/markdown" id="zh-best">
+# Claude Code 最佳实践
+
+> 从配置环境到跨并行会话扩展，充分利用 Claude Code 的提示和模式。
+
+Claude Code 是一个代理式编码环境。与等待回答问题的聊天机器人不同，Claude Code 可以读取你的文件、运行命令、进行更改，并在你观看、重定向或完全离开的情况下自主解决问题。
+
+这改变了你的工作方式。与其自己编写代码并要求 Claude 审查，不如描述你想要什么，让 Claude 弄清楚如何构建它。Claude 会探索、规划和实现。
+
+但这种自主性仍然伴随着学习曲线。Claude 在某些约束条件下工作，你需要理解这些约束。
+
+本指南涵盖了在 Anthropic 内部团队和在各种代码库、语言和环境中使用 Claude Code 的工程师中已被证明有效的模式。有关代理循环如何在幕后工作的信息，请参阅 Claude Code 如何工作。
+
+***
+
+大多数最佳实践都基于一个约束：Claude 的 context window 填充速度很快，随着填充，性能会下降。
+
+Claude 的 context window 保存你的整个对话，包括每条消息、Claude 读取的每个文件和每个命令输出。但这可能会很快填满。单个调试会话或代码库探索可能会生成并消耗数万个 token。
+
+这很重要，因为当 context 填充时，LLM 性能会下降。当 context window 即将满时，Claude 可能会开始“遗忘”早期的指令或犯更多错误。context window 是最重要的资源。
+
+***
+
+## 给 Claude 一种验证其工作的方式
+
+> 给 Claude 一个它可以运行的检查：测试、构建、屏幕截图进行比较。这是你观看的会话和你可以离开的会话之间的区别。
+
+当工作看起来完成时，Claude 会停止。没有它可以运行的检查，“看起来完成”是唯一可用的信号，你成为验证循环：每个错误都在等待你注意到它。给 Claude 一些能产生通过或失败的东西，循环就会自动关闭。Claude 完成工作，运行检查，读取结果，并迭代直到检查通过。
+
+检查是任何返回 Claude 可以在对话中读取的信号的东西：测试套件、构建退出代码、linter、针对固定装置比较输出的脚本，或与设计进行比较的浏览器屏幕截图。
+
+一旦检查存在，决定它对停止的限制有多严格：
+
+* **在一个提示中**：要求 Claude 运行检查并在同一消息中迭代。
+* **在整个会话中**：将检查设置为 `/goal` 条件。单独的评估器在每次转换后重新检查它，Claude 继续工作直到它成立。
+* **作为确定性门**：Stop hook 作为脚本运行你的检查，并阻止转换结束直到它通过。Claude Code 覆盖 hook 并在 8 次连续阻止后结束转换。
+* **通过第二意见**：验证子代理或动态工作流检查自己的发现，有一个新鲜的模型尝试反驳结果，所以做工作的代理不是给它评分的。
+
+让 Claude 显示证据而不是声称成功：测试输出、它运行的命令及其返回的内容，或结果的屏幕截图。审查证据比自己重新运行验证要快，并且它适用于你没有观看的会话。
+
+***
+
+## 先探索，再规划，最后编码
+
+> 将研究和规划与实现分开，以避免解决错误的问题。
+
+让 Claude 直接跳到编码可能会产生解决错误问题的代码。使用 Plan Mode 将探索与执行分开。
+
+推荐的工作流有四个阶段：
+
+#### 探索
+
+进入 Plan Mode。Claude 读取文件并回答问题，不进行任何更改。
+
+```txt
+read /src/auth and understand how we handle sessions and login.
+also look at how we manage environment variables for secrets.
+```
+
+#### 规划
+
+要求 Claude 创建详细的实现计划。
+
+```txt
+I want to add Google OAuth. What files need to change?
+What's the session flow? Create a plan.
+```
+
+按 `Ctrl+G` 在文本编辑器中打开计划进行直接编辑，然后 Claude 继续。
+
+#### 实现
+
+切换出 Plan Mode 并让 Claude 编码，根据其计划进行验证。
+
+```txt
+implement the OAuth flow from your plan. write tests for the
+callback handler, run the test suite and fix any failures.
+```
+
+#### 提交
+
+要求 Claude 使用描述性消息进行提交并创建 PR。
+
+```txt
+commit with a descriptive message and open a PR
+```
+
+> Plan Mode 很有用，但也增加了开销。对于范围明确且修复很小的任务（如修复拼写错误、添加日志行或重命名变量），要求 Claude 直接执行。当你对方法不确定、更改修改多个文件或你不熟悉被修改的代码时，规划最有用。如果你能用一句话描述 diff，跳过计划。
+
+***
+
+## 在提示中提供具体的上下文
+
+> 你的指令越精确，你需要的更正就越少。
+
+Claude 可以推断意图，但它不能读心术。引用特定文件、提及约束，并指出示例模式。
+
+当你在探索并能够改正方向时，模糊的提示可能很有用。像 `"你会改进这个文件的什么？"` 这样的提示可以表面你不会想到要问的东西。
+
+### 提供丰富的内容
+
+> 使用 `@` 引用文件、粘贴屏幕截图/图像或直接管道数据。
+
+你可以通过多种方式向 Claude 提供丰富的数据：
+
+* **使用 `@` 引用文件**，而不是描述代码的位置。Claude 在响应前读取文件。
+* **直接粘贴图像**。复制/粘贴或拖放图像到提示中。
+* **提供 URL** 用于文档和 API 参考。使用 `/permissions` 来允许列表经常使用的域。
+* **管道数据** 通过运行 `cat error.log | claude` 直接发送文件内容。
+* **让 Claude 获取它需要的东西**。告诉 Claude 使用 Bash 命令、MCP 工具或通过读取文件来自己拉取上下文。
+
+***
+
+## 配置你的环境
+
+一些设置步骤使 Claude Code 在所有会话中显著更有效。
+
+### 编写有效的 CLAUDE.md
+
+> 运行 `/init` 根据你的当前项目结构生成启动 CLAUDE.md 文件，然后随时间精化。
+
+CLAUDE.md 是一个特殊文件，Claude 在每次对话开始时读取。包括 Bash 命令、代码风格和工作流规则。这给 Claude 提供了它无法从代码中推断的持久上下文。
+
+`/init` 命令分析你的代码库以检测构建系统、测试框架和代码模式，为你提供坚实的基础来精化。
+
+CLAUDE.md 文件没有必需的格式，但保持简短和易读。例如：
+
+```markdown
+# Code style
+- Use ES modules (import/export) syntax, not CommonJS (require)
+- Destructure imports when possible (eg. import { foo } from 'bar')
+
+# Workflow
+- Be sure to typecheck when you're done making a series of code changes
+- Prefer running single tests, and not the whole test suite, for performance
+```
+
+CLAUDE.md 在每个会话中加载，所以只包括广泛适用的东西。对于仅有时相关的域知识或工作流，改用 skills。Claude 按需加载它们，不会使每次对话都膨胀。
+
+保持简洁。对于每一行，问自己：*"删除这个会导致 Claude 犯错吗？"* 如果不会，删除它。膨胀的 CLAUDE.md 文件会导致 Claude 忽略你的实际指令！
+
+你可以通过添加强调（例如"IMPORTANT"或"YOU MUST"）来调整指令以改进遵守。将文件检入 git，以便你的团队可以贡献。该文件随时间增加价值。
+
+你可以在多个位置放置 CLAUDE.md 文件：
+
+* **主文件夹（`~/.claude/CLAUDE.md`）**：适用于所有 Claude 会话
+* **项目根目录（`./CLAUDE.md`）**：检入 git 以与你的团队共享
+* **项目根目录（`./CLAUDE.local.md`）**：个人项目特定的笔记；将此文件添加到你的 `.gitignore`，以便它不会与你的团队共享
+* **父目录**：对于 monorepos 有用，其中 `root/CLAUDE.md` 和 `root/foo/CLAUDE.md` 都会自动拉入
+* **子目录**：当处理这些目录中的文件时，Claude 按需拉入子 CLAUDE.md 文件
+
+### 配置权限
+
+> 使用 auto mode 让分类器处理批准，使用 `/permissions` 来允许列表特定命令，或使用 `/sandbox` 进行操作系统级隔离。每种方式都减少中断，同时让你保持控制。
+
+默认情况下，Claude Code 请求可能修改你的系统的操作的权限：文件写入、Bash 命令、MCP 工具等。这是安全的但繁琐。有三种方式来减少这些中断：
+
+* **Auto mode**：一个单独的分类器模型审查命令并仅阻止看起来有风险的东西：范围升级、未知基础设施或由敌对内容驱动的操作。最适合当你信任任务的总体方向但不想点击通过每一步时
+* **权限允许列表**：允许你知道是安全的特定工具，如 `npm run lint` 或 `git commit`
+* **沙箱**：启用操作系统级隔离，限制文件系统和网络访问，允许 Claude 在定义的边界内更自由地工作
+
+### 使用 CLI 工具
+
+> 告诉 Claude Code 在与外部服务交互时使用 CLI 工具，如 `gh`、`aws`、`gcloud` 和 `sentry-cli`。
+
+CLI 工具是与外部服务交互的最 context 高效的方式。如果你使用 GitHub，安装 `gh` CLI。Claude 知道如何使用它来创建问题、打开拉取请求和读取评论。没有 `gh`，Claude 仍然可以使用 GitHub API，但未认证的请求经常会触发速率限制。
+
+### 连接 MCP 服务器
+
+> 运行 `claude mcp add` 来连接外部工具，如 Notion、Figma 或你的数据库。
+
+使用 MCP servers，你可以要求 Claude 从问题跟踪器实现功能、查询数据库、分析监控数据、集成来自 Figma 的设计并自动化工作流。
+
+### 设置 hooks
+
+> 使用 hooks 来处理必须每次发生且没有例外的操作。
+
+Hooks 在 Claude 工作流中的特定点自动运行脚本。与 CLAUDE.md 指令不同，hooks 是确定性的，保证操作发生。
+
+### 创建 skills
+
+> 在 `.claude/skills/` 中创建 `SKILL.md` 文件，为 Claude 提供域知识和可重用工作流。
+
+Skills 使用特定于你的项目、团队或域的信息扩展 Claude 的知识。Claude 在相关时自动应用它们，或者你可以使用 `/skill-name` 直接调用它们。
+
+### 创建自定义 subagents
+
+> 在 `.claude/agents/` 中定义专门的助手，Claude 可以委托给它们来处理隔离的任务。
+
+Subagents 在自己的 context 中运行，拥有自己的一组允许的工具。它们对于读取许多文件或需要专门关注而不会使你的主对话混乱的任务很有用。
+
+### 安装 plugins
+
+> 运行 `/plugin` 来浏览市场。Plugins 添加 skills、工具和集成，无需配置。
+
+Plugins 将 skills、hooks、subagents 和 MCP 服务器捆绑到来自社区和 Anthropic 的单个可安装单元中。如果你使用类型化语言，安装 代码智能 plugin 来为 Claude 提供精确的符号导航和编辑后的自动错误检测。
+
+***
+
+## 有效沟通
+
+你与 Claude Code 沟通的方式显著影响结果的质量。
+
+### 提出代码库问题
+
+> 问 Claude 你会问资深工程师的问题。
+
+当加入新代码库时，使用 Claude Code 进行学习和探索。你可以问 Claude 你会问另一个工程师的相同类型的问题：
+
+* 日志如何工作？
+* 我如何创建新的 API 端点？
+* `foo.rs` 第 134 行的 `async move { ... }` 做什么？
+* `CustomerOnboardingFlowImpl` 处理哪些边界情况？
+* 为什么这段代码在第 333 行调用 `foo()` 而不是 `bar()`？
+
+以这种方式使用 Claude Code 是一个有效的入职工作流，改进了加入时间并减少了对其他工程师的负担。无需特殊提示：直接提问。
+
+### 让 Claude 采访你
+
+> 对于更大的功能，让 Claude 先采访你。从最小的提示开始，要求 Claude 使用 `AskUserQuestion` 工具采访你。
+
+Claude 会问你可能还没有考虑过的东西，包括技术实现、UI/UX、边界情况和权衡。
+
+一旦规范完成，启动新会话来执行它。新会话有干净的 context，完全专注于实现，你有一个书面规范可以参考。
+
+***
+
+## 管理你的会话
+
+对话是持久的和可逆的。利用这一点！
+
+### 尽早且经常改正方向
+
+> 一旦你注意到 Claude 偏离轨道，立即改正它。
+
+最好的结果来自紧密的反馈循环。虽然 Claude 有时会在第一次尝试时完美地解决问题，但快速改正它通常会更快地产生更好的解决方案。
+
+* **`Esc`**：使用 `Esc` 键在中途停止 Claude。Context 被保留，所以你可以重定向。
+* **`Esc + Esc` 或 `/rewind`**：按 `Esc` 两次或运行 `/rewind` 来打开 rewind 菜单并恢复之前的对话和代码状态，或从选定的消息进行总结。
+* **`"撤销那个"`**：让 Claude 恢复其更改。
+* **`/clear`**：在不相关的任务之间重置 context。长会话与无关的 context 可能会降低性能。
+
+如果你在一个会话中对同一问题改正了 Claude 两次以上，context 就充满了失败的方法。运行 `/clear` 并使用更具体的提示重新开始，该提示包含你学到的东西。干净的会话与更好的提示几乎总是优于长会话与累积的改正。
+
+### 积极管理 context
+
+> 在不相关的任务之间频繁运行 `/clear` 来重置 context。
+
+Claude Code 在你接近 context 限制时自动压缩对话历史，这保留了重要的代码和决策，同时释放空间。
+
+### 使用 subagents 进行调查
+
+> 使用 `"use subagents to investigate X"` 委托研究。它们在单独的 context 中探索，为实现保持你的主对话干净。
+
+由于 context 是你的基本约束，subagents 是可用的最强大的工具之一。当 Claude 研究代码库时，它读取许多文件，所有这些都消耗你的 context。Subagents 在单独的 context windows 中运行并报告摘要。
+
+### 使用检查点进行 Rewind
+
+> Claude 进行的每个提示都会创建一个检查点。你可以将对话、代码或两者恢复到任何之前的检查点。
+
+Claude 在每次更改前自动对文件进行快照，以便检查点可以恢复它们。双击 `Escape` 或运行 `/rewind` 来打开 rewind 菜单。你可以仅恢复对话、仅恢复代码、恢复两者或从选定的消息进行总结。
+
+> 检查点仅跟踪 Claude 进行的更改，不跟踪外部进程。这不是 git 的替代品。
+
+### 恢复对话
+
+> 使用 `/rename` 给会话命名，并像对待分支一样对待它们：每个工作流都有自己的持久 context。
+
+Claude Code 在本地保存对话，所以当任务跨越多个会话时，你不必重新解释 context。运行 `claude --continue` 来继续最近的会话，或 `claude --resume` 来从列表中选择。给会话起描述性名称，如 `oauth-migration`，以便你稍后可以找到它们。
+
+***
+
+## 自动化和扩展
+
+一旦你对一个 Claude 有效，通过并行会话、非交互模式和扇出模式来增加你的输出。
+
+到目前为止，一切都假设一个人、一个 Claude 和一个对话。但 Claude Code 水平扩展。本部分中的技术展示了你如何能做更多。
+
+### 运行非交互模式
+
+> 在 CI、pre-commit hooks 或脚本中使用 `claude -p "prompt"`。添加 `--output-format stream-json --verbose` 用于流式 JSON 输出。
+
+使用 `claude -p "your prompt"`，你可以非交互地运行 Claude，不需要会话。非交互模式是你将 Claude 集成到 CI 管道、pre-commit hooks 或任何自动化工作流中的方式。输出格式让你以编程方式解析结果：纯文本、JSON 或流式 JSON。
+
+### 运行多个 Claude 会话
+
+> 并行运行多个 Claude 会话以加快开发、运行隔离的实验或启动复杂的工作流。
+
+选择适合你想要自己进行多少协调的并行方法：
+
+* **Worktrees**：在隔离的 git 检出中运行单独的 CLI 会话，以便编辑不会冲突
+* **桌面应用**：以视觉方式管理多个本地会话，每个会话都在自己的 worktree 中
+* **Claude Code 在网络上**：在 Anthropic 管理的云基础设施中的隔离虚拟机上运行会话
+* **Agent teams**：具有共享任务、消息和团队主管的多个会话的自动协调
+
+除了并行化工作，多个会话启用了质量关注的工作流。新鲜的 context 改进了代码审查，因为 Claude 不会偏向于它刚刚编写的代码。
+
+### 使用 auto mode 自主运行
+
+为了不间断的执行和后台安全检查，使用 auto mode。分类器模型在命令运行前审查它们，阻止范围升级、未知基础设施和由敌对内容驱动的操作，同时让常规工作无提示进行。
+
+### 添加对抗性审查步骤
+
+> 在将任务视为完成之前，让一个子代理在新鲜的 context 中审查差异并报告缺陷。
+
+Claude 无人值守工作的时间越长，在你将工作视为完成之前进行独立检查就越重要。在新鲜的 subagent context 中运行的审查者只看到差异和你给它的标准，而不是产生更改的推理，所以它按自己的条件评估结果。
+
+> 被提示查找缺陷的审查者通常会报告一些，即使工作是健全的，因为那是它被要求做的。追逐每个发现会导致过度工程：额外的抽象层、防御性代码和针对无法发生的情况的测试。告诉审查者只标记影响正确性或陈述要求的缺陷，将其余的视为可选。
+
+***
+
+## 避免常见失败模式
+
+这些是常见的错误。尽早识别它们可以节省时间：
+
+* **厨房水槽会话。** 你从一个任务开始，然后问 Claude 一些不相关的东西，然后回到第一个任务。Context 充满了无关的信息。**修复**：在不相关的任务之间 `/clear`。
+* **一次又一次地改正。** Claude 做错了什么，你改正它，它仍然是错的，你再改正。Context 被失败的方法污染。**修复**：在两次失败的改正后，`/clear` 并编写一个更好的初始提示，包含你学到的东西。
+* **过度指定的 CLAUDE.md。** 如果你的 CLAUDE.md 太长，Claude 会忽略一半，因为重要的规则在噪音中丢失。**修复**：无情地修剪。
+* **信任然后验证的差距。** Claude 产生一个看起来合理的实现，但不处理边界情况。**修复**：始终提供验证（测试、脚本、屏幕截图）。如果你不能验证它，不要发布它。
+* **无限探索。** 你要求 Claude “调查”某些东西而不限定范围。Claude 读取数百个文件，填充 context。**修复**：狭隘地限定调查或使用 subagents。
+
+***
+
+## 培养你的直觉
+
+本指南中的模式不是一成不变的。它们是通常效果很好的起点，但可能不是每种情况的最优选择。
+
+注意什么有效。当 Claude 产生很好的输出时，注意你做了什么：提示结构、你提供的 context、你所在的模式。当 Claude 遇到困难时，问为什么。Context 太嘈杂了吗？提示太模糊了吗？任务对于一次通过来说太大了吗？
+
+随着时间的推移，你会培养没有指南能捕捉的直觉。你会知道何时具体，何时开放，何时规划，何时探索，何时清除 context，何时让它累积。
+</script>
+
+<script type="text/markdown" id="en-concepts">
+# How Claude Code works
+
+> Understand the agentic loop, built-in tools, and how Claude Code interacts with your project.
+
+Claude Code is an agentic assistant that runs in your terminal. While it excels at coding, it can help with anything you can do from the command line: writing docs, running builds, searching files, researching topics, and more.
+
+## The agentic loop
+
+When you give Claude a task, it works through three phases: **gather context**, **take action**, and **verify results**. These phases blend together. Claude uses tools throughout, whether searching files to understand your code, editing to make changes, or running tests to check its work.
+
+The loop adapts to what you ask. A question about your codebase might only need context gathering. A bug fix cycles through all three phases repeatedly. A refactor might involve extensive verification. Claude decides what each step requires based on what it learned from the previous step, chaining dozens of actions together and course-correcting along the way.
+
+You're part of this loop too. You can interrupt at any point to steer Claude in a different direction, provide additional context, or ask it to try a different approach. Claude works autonomously but stays responsive to your input.
+
+The agentic loop is powered by two components: models that reason and tools that act. Claude Code serves as the **agentic harness** around Claude: it provides the tools, context management, and execution environment that turn a language model into a capable coding agent.
+
+### Models
+
+Claude Code uses Claude models to understand your code and reason about tasks. Claude can read code in any language, understand how components connect, and figure out what needs to change to accomplish your goal. For complex tasks, it breaks work into steps, executes them, and adjusts based on what it learns.
+
+Multiple models are available with different tradeoffs. Sonnet handles most coding tasks well. Opus provides stronger reasoning for complex architectural decisions. Switch with `/model` during a session or start with `claude --model <name>`.
+
+### Tools
+
+Tools are what make Claude Code agentic. Without tools, Claude can only respond with text. With tools, Claude can act: read your code, edit files, run commands, search the web, and interact with external services. Each tool use returns information that feeds back into the loop, informing Claude's next decision.
+
+The built-in tools generally fall into five categories, each representing a different kind of agency.
+
+Claude chooses which tools to use based on your prompt and what it learns along the way. When you say "fix the failing tests," Claude might:
+
+1. Run the test suite to see what's failing
+2. Read the error output
+3. Search for the relevant source files
+4. Read those files to understand the code
+5. Edit the files to fix the issue
+6. Run the tests again to verify
+
+Each tool use gives Claude new information that informs the next step. This is the agentic loop in action.
+
+**Extending the base capabilities:** The built-in tools are the foundation. You can extend what Claude knows with skills, connect to external services with MCP, automate workflows with hooks, and offload tasks to subagents. These extensions form a layer on top of the core agentic loop.
+
+## What Claude can access
+
+This guide focuses on the terminal. Claude Code also runs in VS Code, JetBrains IDEs, and other environments.
+
+When you run `claude` in a directory, Claude Code gains access to:
+
+* **Your project.** Files in your directory and subdirectories, plus files elsewhere with your permission.
+* **Your terminal.** Any command you could run: build tools, git, package managers, system utilities, scripts. If you can do it from the command line, Claude can too.
+* **Your git state.** Current branch, uncommitted changes, and recent commit history.
+* **Your CLAUDE.md.** A markdown file where you store project-specific instructions, conventions, and context that Claude should know every session.
+* **Auto memory.** Learnings Claude saves automatically as you work, like project patterns and your preferences. The first 200 lines or 25KB of MEMORY.md, whichever comes first, load at the start of each session.
+* **Extensions you configure.** MCP servers for external services, skills for workflows, subagents for delegated work, and Claude in Chrome for browser interaction.
+
+Because Claude sees your whole project, it can work across it. When you ask Claude to "fix the authentication bug," it searches for relevant files, reads multiple files to understand context, makes coordinated edits across them, runs tests to verify the fix, and commits the changes if you ask. This is different from inline code assistants that only see the current file.
+
+## Environments and interfaces
+
+The agentic loop, tools, and capabilities described above are the same everywhere you use Claude Code. What changes is where the code executes and how you interact with it.
+
+### Execution environments
+
+Claude Code runs in three environments, each with different tradeoffs for where your code executes.
+
+### Interfaces
+
+You can access Claude Code through the terminal, the desktop app, IDE extensions, claude.ai/code, Remote Control, Slack, and CI/CD pipelines. The interface determines how you see and interact with Claude, but the underlying agentic loop is identical.
+
+## Work with sessions
+
+Claude Code saves your conversation locally as you work. Each message, tool use, and result is written to a plaintext JSONL file under `~/.claude/projects/`, which enables rewinding, resuming, and forking sessions. Before Claude makes code changes, it also snapshots the affected files so you can revert if needed.
+
+**Sessions are independent.** Each new session starts with a fresh context window, without the conversation history from previous sessions. Claude can persist learnings across sessions using auto memory, and you can add your own persistent instructions in CLAUDE.md.
+
+### Work across branches
+
+Each Claude Code conversation is a session tied to your current directory. Claude sees your current branch's files. When you switch branches, Claude sees the new branch's files, but your conversation history stays the same. Claude remembers what you discussed even after switching.
+
+Since sessions are tied to directories, you can run parallel Claude sessions by using git worktrees, which create separate directories for individual branches.
+
+### Resume or fork sessions
+
+Resuming a session with `claude --continue` or `claude --resume` reopens it under the same session ID and appends new messages to the existing conversation. Forking with `--fork-session` or `/branch` copies the history into a new session ID, leaving the original unchanged.
+
+### The context window
+
+Claude's context window holds your conversation history, file contents, command outputs, CLAUDE.md, auto memory, loaded skills, and system instructions. As you work, context fills up. Claude compacts automatically, but instructions from early in the conversation can get lost. Put persistent rules in CLAUDE.md, and run `/context` to see what's using space.
+
+#### When context fills up
+
+Claude Code manages context automatically as you approach the limit. It clears older tool outputs first, then summarizes the conversation if needed. Your requests and key code snippets are preserved; detailed instructions from early in the conversation may be lost. Put persistent rules in CLAUDE.md rather than relying on conversation history.
+
+#### Manage context with skills and subagents
+
+Beyond compaction, you can use other features to control what loads into context.
+
+Skills load on demand. Claude sees skill descriptions at session start, but the full content only loads when a skill is used. For skills you invoke manually, set `disable-model-invocation: true` to keep descriptions out of context until you need them.
+
+Subagents get their own fresh context, completely separate from your main conversation. Their work doesn't bloat your context. When done, they return a summary. This isolation is why subagents help with long sessions.
+
+## Stay safe with checkpoints and permissions
+
+Claude has two safety mechanisms: checkpoints let you undo file changes, and permissions control what Claude can do without asking.
+
+### Undo changes with checkpoints
+
+**Every file edit is reversible.** Before Claude edits any file, it snapshots the current contents. If something goes wrong, press `Esc` twice to rewind to a previous state, or ask Claude to undo.
+
+Checkpoints are local to your session, separate from git. They only cover file changes. Actions that affect remote systems (databases, APIs, deployments) can't be checkpointed, which is why Claude asks before running commands with external side effects.
+
+### Control what Claude can do
+
+Press `Shift+Tab` to cycle through permission modes:
+
+* **Default**: Claude asks before file edits and shell commands
+* **Auto-accept edits**: Claude edits files and runs common filesystem commands like `mkdir` and `mv` without asking, still asks for other commands
+* **Plan mode**: Claude uses read-only tools only, creating a plan you can approve before execution
+* **Auto mode**: Claude evaluates all actions with background safety checks. Currently a research preview
+
+You can also allow specific commands in `.claude/settings.json` so Claude doesn't ask each time. This is useful for trusted commands like `npm test` or `git status`. Settings can be scoped from organization-wide policies down to personal preferences.
+
+***
+
+## Work effectively with Claude Code
+
+These tips help you get better results from Claude Code.
+
+### Ask Claude Code for help
+
+Claude Code can teach you how to use it. Ask questions like "how do I set up hooks?" or "what's the best way to structure my CLAUDE.md?" and Claude will explain.
+
+Built-in commands also guide you through setup:
+
+* `/init` walks you through creating a CLAUDE.md for your project
+* `/agents` helps you configure custom subagents
+* `/doctor` diagnoses common issues with your installation
+
+### It's a conversation
+
+Claude Code is conversational. You don't need perfect prompts. Start with what you want, then refine. When the first attempt isn't right, you don't start over. You iterate.
+
+### Be specific upfront
+
+The more precise your initial prompt, the fewer corrections you'll need. Reference specific files, mention constraints, and point to example patterns.
+
+Vague prompts work, but you'll spend more time steering. Specific prompts often succeed on the first attempt.
+
+### Give Claude something to verify against
+
+Claude performs better when it can check its own work. Include test cases, paste screenshots of expected UI, or define the output you want. For visual work, paste a screenshot of the design and ask Claude to compare its implementation against it.
+
+### Explore before implementing
+
+For complex problems, separate research from coding. Use plan mode (`Shift+Tab` twice) to analyze the codebase first. Review the plan, refine it through conversation, then let Claude implement. This two-phase approach produces better results than jumping straight to code.
+
+### Delegate, don't dictate
+
+Think of delegating to a capable colleague. Give context and direction, then trust Claude to figure out the details. You don't need to specify which files to read or what commands to run. Claude figures that out.
+</script>
+
+<script type="text/markdown" id="zh-concepts">
+# Claude Code 如何工作
+
+> 了解代理循环、内置工具以及 Claude Code 如何与您的项目交互。
+
+Claude Code 是一个在您的终端中运行的代理助手。虽然它在编码方面表现出色，但它可以帮助您完成从命令行可以做的任何事情：编写文档、运行构建、搜索文件、研究主题等。
+
+## 代理循环
+
+当您给 Claude 一个任务时，它会经历三个阶段：**收集上下文**、**采取行动**和**验证结果**。这些阶段相互融合。Claude 始终使用工具，无论是搜索文件以了解您的代码、编辑以进行更改，还是运行测试以检查其工作。
+
+循环会根据您的要求进行调整。关于您代码库的问题可能只需要收集上下文。错误修复会循环通过所有三个阶段多次。重构可能涉及广泛的验证。Claude 根据从前一步学到的内容决定每一步需要什么，将数十个操作链接在一起并沿途进行纠正。
+
+您也是这个循环的一部分。您可以在任何时刻中断以引导 Claude 朝不同的方向发展、提供额外的上下文或要求它尝试不同的方法。Claude 自主工作但对您的输入保持响应。
+
+代理循环由两个组件驱动：模型进行推理和工具采取行动。Claude Code 充当 Claude 周围的**代理框架**：它提供工具、上下文管理和执行环境，将语言模型转变为能够进行编码的代理。
+
+### 模型
+
+Claude Code 使用 Claude 模型来理解您的代码并推理任务。Claude 可以读取任何语言的代码、理解组件如何连接，以及找出需要改变什么来实现您的目标。对于复杂的任务，它将工作分解为步骤、执行它们，并根据学到的内容进行调整。
+
+多个模型可用，具有不同的权衡。Sonnet 可以很好地处理大多数编码任务。Opus 为复杂的架构决策提供更强的推理能力。在会话期间使用 `/model` 切换或使用 `claude --model <name>` 启动。
+
+### 工具
+
+工具是使 Claude Code 成为代理的原因。没有工具，Claude 只能用文本回应。有了工具，Claude 可以采取行动：读取您的代码、编辑文件、运行命令、搜索网络并与外部服务交互。每个工具使用都会返回信息，反馈到循环中，告知 Claude 的下一个决定。
+
+内置工具通常分为五个类别，每个类别代表不同类型的代理能力。
+
+Claude 根据您的提示和沿途学到的内容选择使用哪些工具。当您说“修复失败的测试”时，Claude 可能会：
+
+1. 运行测试套件以查看失败的内容
+2. 读取错误输出
+3. 搜索相关的源文件
+4. 读取这些文件以理解代码
+5. 编辑文件以修复问题
+6. 再次运行测试以验证
+
+每个工具使用都给 Claude 新的信息，告知下一步。这就是代理循环的实际应用。
+
+**扩展基本功能：** 内置工具是基础。您可以使用 skills 扩展 Claude 知道的内容、使用 MCP 连接到外部服务、使用 hooks 自动化工作流，以及将任务卸载给 subagents。这些扩展形成了核心代理循环之上的一层。
+
+## Claude 可以访问什么
+
+本指南重点关注终端。Claude Code 也在 VS Code、JetBrains IDE 和其他环境中运行。
+
+当您在目录中运行 `claude` 时，Claude Code 可以访问：
+
+* **您的项目。** 您目录和子目录中的文件，以及其他地方有您许可的文件。
+* **您的终端。** 您可以运行的任何命令：构建工具、git、包管理器、系统实用程序、脚本。如果您可以从命令行做到，Claude 也可以。
+* **您的 git 状态。** 当前分支、未提交的更改和最近的提交历史。
+* **您的 CLAUDE.md。** 一个 markdown 文件，您可以在其中存储项目特定的说明、约定和 Claude 应该在每个会话中了解的上下文。
+* **自动内存。** Claude 在您工作时自动保存的学习内容，如项目模式和您的偏好。MEMORY.md 的前 200 行或 25KB（以先到者为准）在每个会话开始时加载。
+* **您配置的扩展。** 用于外部服务的 MCP servers、用于工作流的 skills、用于委派工作的 subagents 和用于浏览器交互的 Claude in Chrome。
+
+因为 Claude 看到您的整个项目，它可以跨越它工作。当您要求 Claude“修复身份验证错误”时，它搜索相关文件、读取多个文件以理解上下文、跨它们进行协调编辑、运行测试以验证修复，并在您要求时提交更改。这与只看到当前文件的内联代码助手不同。
+
+## 环境和界面
+
+上面描述的代理循环、工具和功能在您使用 Claude Code 的任何地方都是相同的。改变的是代码执行的位置以及您与它交互的方式。
+
+### 执行环境
+
+Claude Code 在三个环境中运行，每个环境对代码执行位置有不同的权衡。
+
+### 界面
+
+您可以通过终端、桌面应用、IDE 扩展、claude.ai/code、远程控制、Slack 和 CI/CD 管道访问 Claude Code。界面决定了您如何看到和与 Claude 交互，但底层的代理循环是相同的。
+
+## 使用会话
+
+Claude Code 在您工作时将您的对话保存在本地。每条消息、工具使用和结果都被写入 `~/.claude/projects/` 下的纯文本 JSONL 文件，这使得回退、恢复和分叉会话成为可能。在 Claude 进行代码更改之前，它还会对受影响的文件进行快照，以便您在需要时可以恢复。
+
+**会话是独立的。** 每个新会话都以新的上下文窗口开始，没有来自以前会话的对话历史。Claude 可以使用自动内存跨会话保持学习，您可以在 CLAUDE.md 中添加您自己的持久说明。
+
+### 跨分支工作
+
+每个 Claude Code 对话都是一个与您当前目录相关的会话。Claude 看到您当前分支的文件。当您切换分支时，Claude 看到新分支的文件，但您的对话历史保持不变。Claude 记得您讨论过的内容，即使在切换后也是如此。
+
+由于会话与目录相关，您可以通过使用 git worktrees 运行并行 Claude 会话，这为各个分支创建单独的目录。
+
+### 恢复或分叉会话
+
+使用 `claude --continue` 或 `claude --resume` 恢复会话会在相同的会话 ID 下重新打开它，并将新消息附加到现有对话。使用 `--fork-session` 或 `/branch` 分叉会将历史复制到新的会话 ID 中，保持原始会话不变。
+
+### 上下文窗口
+
+Claude 的上下文窗口保存您的对话历史、文件内容、命令输出、CLAUDE.md、自动内存、加载的 skills 和系统说明。当您工作时，上下文填满。Claude 自动压缩，但对话早期的说明可能会丢失。将持久规则放在 CLAUDE.md 中，并运行 `/context` 以查看什么在占用空间。
+
+#### 当上下文填满时
+
+Claude Code 在您接近限制时自动管理上下文。它首先清除较旧的工具输出，然后在需要时总结对话。您的请求和关键代码片段被保留；对话早期的详细说明可能会丢失。将持久规则放在 CLAUDE.md 中，而不是依赖对话历史。
+
+#### 使用 skills 和 subagents 管理上下文
+
+除了压缩，您可以使用其他功能来控制什么加载到上下文中。
+
+Skills 按需加载。Claude 在会话开始时看到 skill 描述，但完整内容仅在使用 skill 时加载。对于您手动调用的 skills，设置 `disable-model-invocation: true` 以将描述保留在上下文之外，直到您需要它们。
+
+Subagents 获得自己的新上下文，完全独立于您的主对话。他们的工作不会使您的上下文膨胀。完成后，他们返回一个摘要。这种隔离是为什么 subagents 有助于长会话。
+
+## 使用检查点和权限保持安全
+
+Claude 有两个安全机制：检查点让您撤销文件更改，权限控制 Claude 可以在不询问的情况下做什么。
+
+### 使用检查点撤销更改
+
+**每个文件编辑都是可逆的。** 在 Claude 编辑任何文件之前，它会对当前内容进行快照。如果出现问题，按两次 `Esc` 以回退到之前的状态，或要求 Claude 撤销。
+
+检查点是会话本地的，独立于 git。它们仅涵盖文件更改。影响远程系统的操作（数据库、API、部署）无法进行检查点，这就是为什么 Claude 在运行具有外部副作用的命令之前询问。
+
+### 控制 Claude 可以做什么
+
+按 `Shift+Tab` 循环通过权限模式：
+
+* **默认**：Claude 在文件编辑和 shell 命令之前询问
+* **自动接受编辑**：Claude 编辑文件并运行常见的文件系统命令（如 `mkdir` 和 `mv`）而不询问，仍然询问其他命令
+* **Plan Mode**：Claude 仅使用只读工具，创建您可以在执行前批准的计划
+* **自动模式**：Claude 使用后台安全检查评估所有操作。目前是研究预览
+
+您也可以在 `.claude/settings.json` 中允许特定命令，以便 Claude 不会每次都询问。这对于受信任的命令（如 `npm test` 或 `git status`）很有用。设置可以从组织范围的策略范围到个人偏好。
+
+***
+
+## 有效使用 Claude Code
+
+这些提示可以帮助您从 Claude Code 获得更好的结果。
+
+### 向 Claude Code 寻求帮助
+
+Claude Code 可以教您如何使用它。提出问题，如“我如何设置 hooks？”或“构建我的 CLAUDE.md 的最佳方式是什么？”，Claude 会解释。
+
+内置命令也会指导您完成设置：
+
+* `/init` 引导您为项目创建 CLAUDE.md
+* `/agents` 帮助您配置自定义 subagents
+* `/doctor` 诊断您的安装的常见问题
+
+### 这是一个对话
+
+Claude Code 是对话式的。您不需要完美的提示。从您想要的开始，然后细化。当第一次尝试不对时，您不会重新开始。您迭代。
+
+### 预先具体
+
+您的初始提示越精确，您需要的更正就越少。参考特定文件、提及约束并指出示例模式。
+
+模糊的提示有效，但您会花更多时间引导。具体的提示通常在第一次尝试时就成功。
+
+### 给 Claude 一些东西来验证
+
+Claude 在能够检查自己的工作时表现更好。包括测试用例、粘贴预期 UI 的屏幕截图或定义您想要的输出。对于视觉工作，粘贴设计的屏幕截图并要求 Claude 将其实现与其进行比较。
+
+### 在实现之前探索
+
+对于复杂的问题，将研究与编码分开。使用 Plan Mode（按 `Shift+Tab` 两次）首先分析代码库。审查计划，通过对话细化它，然后让 Claude 实现。这种两阶段方法比直接跳到代码产生更好的结果。
+
+### 委派，不要指示
+
+想象委派给一个有能力的同事。提供上下文和方向，然后相信 Claude 会弄清楚细节。您不需要指定要读取哪些文件或运行什么命令。Claude 会弄清楚。
+</script>
+
+<script>
+const Z=String.fromCharCode(0);
+function escapeHtml(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function slug(s){return s.toLowerCase().replace(/[^a-z0-9一-龥]+/g,"-").replace(/(^-|-$)/g,"");}
+function inline(s){
+  s=s.replace(/\\([\[\]\\`*_])/g,"$1");
+  s=escapeHtml(s);
+  const codes=[];
+  s=s.replace(/`([^`]+)`/g,(m,c)=>{codes.push(c);return Z+(codes.length-1)+Z;});
+  s=s.replace(/\[([^\]]+)\]\(([^)]+)\)/g,(m,t,u)=>{let url=u.trim();if(url[0]==="/")url="https://code.claude.com/docs"+url;return '<a href="'+url+'" target="_blank" rel="noopener">'+t+"</a>";});
+  s=s.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+  s=s.replace(/(^|[^*])\*([^*\s][^*]*?)\*/g,"$1<em>$2</em>");
+  s=s.replace(new RegExp(Z+"(\\d+)"+Z,"g"),(m,n)=>"<code>"+codes[n]+"</code>");
+  return s;
+}
+function splitRow(r){return r.trim().replace(/^\|/,"").replace(/\|$/,"").split("|").map(c=>c.trim());}
+function renderTable(lines){
+  const header=lines[0],rows=lines.slice(2);
+  let h="<table><thead><tr>";
+  splitRow(header).forEach(c=>h+="<th>"+inline(c)+"</th>");
+  h+="</tr></thead><tbody>";
+  rows.forEach(r=>{h+="<tr>";splitRow(r).forEach(c=>h+="<td>"+inline(c)+"</td>");h+="</tr>";});
+  return h+"</tbody></table>";
+}
+/* 渲染单个块 */
+function renderBlock(raw){
+  const lines=raw.split("\n");
+  if(/^\s*```/.test(lines[0])){
+    const body=lines.slice(1, lines.length-1).join("\n");
+    return '<pre class="code"><code>'+escapeHtml(body)+"</code></pre>";
+  }
+  if(lines[0].includes("|") && lines[1] && /^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/.test(lines[1])) return renderTable(lines);
+  let h=/^(#{1,6})\s+(.*)$/.exec(lines[0]);
+  if(h && lines.length===1){const lv=h[1].length;return "<h"+lv+">"+inline(h[2])+"</h"+lv+">";}
+  if(/^\s*(\*\*\*|---|___)\s*$/.test(lines[0]) && lines.length===1) return "<hr>";
+  if(/^\s*>\s?/.test(lines[0])){
+    const inner=lines.map(l=>l.replace(/^\s*>\s?/,"")).join("\n");
+    return "<blockquote>"+renderInline(inner)+"</blockquote>";
+  }
+  if(/^\s*([-*+]|\d+\.)\s/.test(lines[0])) return renderList(lines);
+  return "<p>"+inline(lines.map(l=>l.trim()).join(" "))+"</p>";
+}
+function renderInline(md){ /* 段落/列表混合（用于 blockquote 内部） */
+  const blocks=tokenize(md);
+  return blocks.map(renderBlock).join("");
+}
+function renderList(lines){
+  let html="",type=null,i=0;
+  const close=()=>{if(type){html+=(type==="ul"?"</ul>":"</ol>");type=null;}};
+  while(i<lines.length){
+    const line=lines[i];
+    if(/^\s*>\s?/.test(line)){close();let q=[];while(i<lines.length&&/^\s*>\s?/.test(lines[i])){q.push(lines[i].replace(/^\s*>\s?/,""));i++;}html+="<blockquote>"+renderInline(q.join("\n"))+"</blockquote>";continue;}
+    const ul=/^(\s*)[-*+]\s+(.*)$/.exec(line),ol=/^(\s*)(\d+)\.\s+(.*)$/.exec(line);
+    if(ul||ol){const t=ul?"ul":"ol";if(type!==t){close();html+=(t==="ul"?"<ul>":"<ol>");type=t;}html+="<li>"+inline(ul?ul[2]:ol[3])+"</li>";i++;continue;}
+    if(line.trim()===""){i++;continue;}
+    /* 续行并入上一段 li */
+    html=html.replace(/<\/li>$/,"")+" "+inline(line.trim())+"</li>";i++;
+  }
+  close();return html;
+}
+function preprocess(md){
+  md=md.replace(/<img\b[^>]*\balt="([^"]*)"[^>]*>/g,"\n\n> 🖼 $1\n\n");
+  md=md.replace(/<img\b[^>]*>/g,"");
+  md=md.replace(/<(?:Step|Tab|Card|Accordion)\b[^>]*\btitle="([^"]*)"[^>]*>/g,"\n\n#### $1\n\n");
+  md=md.replace(/<\/?[A-Z][A-Za-z0-9]*(?:\s[^>]*)?>/g,"");
+  return md;
+}
+/* 把整篇文档拆成块数组 */
+function tokenize(md){
+  md=preprocess(md);
+  const lines=md.replace(/\r/g,"").split("\n");
+  const blocks=[];let i=0;
+  while(i<lines.length){
+    let line=lines[i];
+    if(line.trim()===""){i++;continue;}
+    if(/^\s*```/.test(line)){let buf=[lines[i]];i++;while(i<lines.length&&!/^\s*```/.test(lines[i])){buf.push(lines[i]);i++;}if(i<lines.length){buf.push(lines[i]);i++;}blocks.push(buf.join("\n"));continue;}
+    if(line.includes("|")&&i+1<lines.length&&/^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/.test(lines[i+1])){let buf=[lines[i],lines[i+1]];i+=2;while(i<lines.length&&lines[i].includes("|")&&lines[i].trim()){buf.push(lines[i]);i++;}blocks.push(buf.join("\n"));continue;}
+    if(/^#{1,6}\s/.test(line)){blocks.push(line);i++;continue;}
+    if(/^\s*(\*\*\*|---|___)\s*$/.test(line)){blocks.push(line);i++;continue;}
+    if(/^\s*>\s?/.test(line)){let buf=[];while(i<lines.length&&/^\s*>\s?/.test(lines[i])){buf.push(lines[i]);i++;}blocks.push(buf.join("\n"));continue;}
+    if(/^\s*([-*+]|\d+\.)\s/.test(line)){let buf=[];while(i<lines.length&&(/^\s*([-*+]|\d+\.)\s/.test(lines[i])||/^\s*>\s?/.test(lines[i])||(lines[i].trim()&&/^\s{2,}\S/.test(lines[i])))){buf.push(lines[i]);i++;}blocks.push(buf.join("\n"));continue;}
+    let buf=[];while(i<lines.length&&lines[i].trim()&&!/^\s*(#{1,6}\s|```|[-*+]\s|\d+\.\s|>|\*\*\*|---)/.test(lines[i])&&!lines[i].includes("|")){buf.push(lines[i]);i++;}
+    if(!buf.length){buf.push(lines[i]);i++;}
+    blocks.push(buf.join("\n"));
+  }
+  return blocks;
+}
+function isHeading(raw){return /^#{1,6}\s/.test(raw);}
+function headLevel(raw){const m=/^(#{1,6})\s/.exec(raw);return m?m[1].length:0;}
+function headText(raw){return raw.replace(/^#{1,6}\s+/,"");}
+
+/* 组装中英对照 */
+function buildDoc(enMd,zhMd,toc){
+  const en=tokenize(enMd),zh=tokenize(zhMd);
+  const n=Math.max(en.length,zh.length);
+  let html="";
+  for(let i=0;i<n;i++){
+    const e=en[i],z=zh[i];
+    if(e!==undefined && z!==undefined && e===z){ html+='<div class="both">'+renderBlock(e)+"</div>"; continue; }
+    const head = (e&&isHeading(e))||(z&&isHeading(z));
+    let id="";
+    if(head){const lv=headLevel(e||z);if(lv<=2){id=slug((e?headText(e):"")+"-"+i);toc.push({id:id,lv:lv,en:e?headText(e):"",zh:z?headText(z):""});}}
+    html+='<div class="pair'+(head?" head":"")+'"'+(id?(' id="'+id+'"'):"")+'>';
+    if(e!==undefined) html+='<div class="en">'+renderBlock(e)+"</div>";
+    if(z!==undefined) html+='<div class="zh">'+renderBlock(z)+"</div>";
+    html+="</div>";
+  }
+  return html;
+}
+
+const toc=[];
+const content=document.getElementById("content");
+content.innerHTML=
+  buildDoc(document.getElementById("en-best").textContent, document.getElementById("zh-best").textContent, toc)+
+  '<hr style="border:none;border-top:3px double var(--line);margin:3em 0">'+
+  buildDoc(document.getElementById("en-concepts").textContent, document.getElementById("zh-concepts").textContent, toc);
+
+/* 目录 */
+const tocList=document.getElementById("tocList");
+toc.forEach(t=>{
+  const a=document.createElement("a");
+  a.href="#"+t.id;a.className="h"+t.lv;
+  a.innerHTML=(t.zh||t.en)+(t.en&&t.zh?'<br><small>'+t.en+"</small>":"");
+  a.onclick=e=>{e.preventDefault();const el=document.getElementById(t.id);if(el)el.scrollIntoView({behavior:"smooth"});closeToc();};
+  tocList.appendChild(a);
+});
+
+/* 翻页 */
+const reader=document.getElementById("reader"),pageind=document.getElementById("pageind"),progress=document.getElementById("progress");
+function stepH(){return reader.clientHeight*0.9;}
+function update(){
+  const total=Math.max(1,Math.ceil(reader.scrollHeight/reader.clientHeight));
+  const cur=Math.min(total,Math.floor(reader.scrollTop/reader.clientHeight)+1);
+  pageind.textContent="第 "+cur+" / "+total+" 页";
+  const max=reader.scrollHeight-reader.clientHeight;
+  progress.style.width=(max>0?(reader.scrollTop/max*100):0)+"%";
+}
+function next(){reader.scrollBy({top:stepH(),behavior:"smooth"});}
+function prev(){reader.scrollBy({top:-stepH(),behavior:"smooth"});}
+document.getElementById("nextBtn").onclick=next;
+document.getElementById("prevBtn").onclick=prev;
+reader.addEventListener("scroll",update);window.addEventListener("resize",update);
+document.addEventListener("keydown",e=>{
+  if(e.target.tagName==="INPUT")return;
+  if(["ArrowDown","PageDown"," "].includes(e.key)){e.preventDefault();next();}
+  else if(["ArrowUp","PageUp"].includes(e.key)){e.preventDefault();prev();}
+  else if(e.key==="Home"){e.preventDefault();reader.scrollTo({top:0,behavior:"smooth"});}
+  else if(e.key==="End"){e.preventDefault();reader.scrollTo({top:reader.scrollHeight,behavior:"smooth"});}
+});
+
+/* 目录抽屉 */
+const tocEl=document.getElementById("toc"),scrim=document.getElementById("scrim");
+function openToc(){tocEl.classList.add("open");scrim.classList.add("show");}
+function closeToc(){tocEl.classList.remove("open");scrim.classList.remove("show");}
+document.getElementById("tocBtn").onclick=()=>tocEl.classList.contains("open")?closeToc():openToc();
+scrim.onclick=closeToc;
+
+/* 显示模式：对照 / 仅中 / 仅英 */
+const modes=[["","对照"],["zh-only","仅中文"],["en-only","仅英文"]];
+let mi=0;const modeBtn=document.getElementById("modeBtn");
+modeBtn.onclick=()=>{mi=(mi+1)%3;document.body.className=modes[mi][0];modeBtn.textContent=modes[mi][1];modeBtn.classList.toggle("on",mi!==0);update();};
+
+/* 深浅色 */
+document.getElementById("themeBtn").onclick=()=>{
+  const d=document.documentElement.getAttribute("data-theme")==="dark";
+  document.documentElement.setAttribute("data-theme",d?"light":"dark");
+};
+
+update();
+</script>
+</body>
+</html>

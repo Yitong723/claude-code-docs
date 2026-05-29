@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code Best Practices — 最佳实践完整指南</title>
+<style>
+  :root{
+    --bg:#faf8f4; --card:#fff; --ink:#1f1d1a; --muted:#6b655c;
+    --accent:#cc6b3d; --accent-soft:#f5e6dc; --line:#e8e2d8;
+    --code-bg:#2d2a26; --code-ink:#f0ece4; --tip:#eef4ee; --tip-line:#4a7a4a;
+    --warn:#fcf0ec; --warn-line:#cc6b3d;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.75; font-size:16px;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:48px 24px 96px}
+  header.hero{
+    background:linear-gradient(135deg,#2d2a26,#3d362e); color:#f0ece4;
+    border-radius:18px; padding:44px 40px; margin-bottom:40px;
+    box-shadow:0 8px 30px rgba(0,0,0,.12);
+  }
+  header.hero h1{margin:0 0 12px; font-size:30px; letter-spacing:.5px}
+  header.hero .sub{color:#c9c2b6; font-size:15px; line-height:1.7}
+  header.hero a{color:#e8a87c}
+  h2{
+    margin:52px 0 18px; padding-bottom:10px; font-size:24px;
+    border-bottom:2px solid var(--accent); display:flex; align-items:center; gap:10px;
+  }
+  h2 .num{
+    background:var(--accent); color:#fff; border-radius:8px;
+    font-size:15px; padding:2px 11px; flex:none;
+  }
+  h3{margin:34px 0 12px; font-size:19px; color:#3d362e}
+  p{margin:14px 0}
+  ul,ol{margin:14px 0; padding-left:24px}
+  li{margin:7px 0}
+  a{color:var(--accent)}
+  code{
+    background:var(--accent-soft); color:#a04a22; padding:2px 6px;
+    border-radius:5px; font-size:.88em; font-family:"SF Mono",Menlo,Consolas,monospace;
+  }
+  pre{
+    background:var(--code-bg); color:var(--code-ink); padding:18px 20px;
+    border-radius:12px; overflow-x:auto; font-size:13.5px; line-height:1.6;
+    font-family:"SF Mono",Menlo,Consolas,monospace; margin:18px 0;
+  }
+  pre code{background:none; color:inherit; padding:0}
+  .tip{
+    background:var(--tip); border-left:4px solid var(--tip-line);
+    padding:14px 18px; border-radius:0 10px 10px 0; margin:18px 0; font-size:15px;
+  }
+  .tip::before{content:"💡 要点  "; font-weight:700; color:var(--tip-line)}
+  .warn{
+    background:var(--warn); border-left:4px solid var(--warn-line);
+    padding:14px 18px; border-radius:0 10px 10px 0; margin:18px 0; font-size:15px;
+  }
+  .warn::before{content:"⚠️  "; font-weight:700}
+  table{border-collapse:collapse; width:100%; margin:20px 0; font-size:14.5px; background:var(--card); border-radius:10px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,.04)}
+  th,td{border:1px solid var(--line); padding:11px 14px; text-align:left; vertical-align:top}
+  th{background:var(--accent-soft); color:#a04a22; font-weight:700}
+  tr:nth-child(even) td{background:#fdfbf8}
+  blockquote{
+    margin:14px 0; padding:10px 18px; border-left:3px solid var(--line);
+    color:var(--muted); background:var(--card); border-radius:0 8px 8px 0; font-size:14.5px;
+  }
+  .toc{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:22px 28px; margin-bottom:36px}
+  .toc h2{margin:0 0 12px; border:none; font-size:18px; padding:0}
+  .toc ol{margin:0; padding-left:22px}
+  .toc a{text-decoration:none}
+  .toc a:hover{text-decoration:underline}
+  .steps{counter-reset:step; list-style:none; padding-left:0}
+  .steps>li{position:relative; padding:4px 0 18px 46px; margin:0}
+  .steps>li::before{
+    counter-increment:step; content:counter(step);
+    position:absolute; left:0; top:2px; width:30px; height:30px;
+    background:var(--accent); color:#fff; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px;
+  }
+  hr{border:none; border-top:1px solid var(--line); margin:40px 0}
+  footer{margin-top:60px; padding-top:24px; border-top:1px solid var(--line); color:var(--muted); font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>Claude Code Best Practices</h1>
+  <div class="sub">
+    最佳实践完整指南 · 智能体式编码（agentic coding）<br>
+    来源：Anthropic 官方文档 — <a href="https://code.claude.com/docs/en/best-practices">code.claude.com/docs/en/best-practices</a><br>
+    （原《Claude Code: Best practices for agentic coding》工程博客已迁移并扩充为此官方文档）<br>
+    整理日期：2026-05-29
+  </div>
+</header>
+
+<p>Claude Code 是一个<strong>智能体式（agentic）编码环境</strong>。它不像聊天机器人那样回答问题后等待——它能读取你的文件、运行命令、修改代码，并在你旁观、纠偏或离开时自主推进问题。</p>
+<p>这改变了工作方式：你不再自己写代码让 Claude 审查，而是<strong>描述你想要什么，让 Claude 决定如何构建</strong>。Claude 负责探索、规划、实现。但这种自主性有学习曲线，Claude 在一定约束内工作，你需要理解这些约束。</p>
+
+<nav class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li><a href="#core">贯穿全篇的核心约束：上下文窗口</a></li>
+    <li><a href="#s1">给 Claude 一个能自己验证工作的方法</a></li>
+    <li><a href="#s2">先探索，再规划，最后写代码</a></li>
+    <li><a href="#s3">在 prompt 中提供具体上下文</a></li>
+    <li><a href="#s4">配置你的环境（CLAUDE.md / 权限 / CLI / MCP / hooks / skills / subagents / 插件）</a></li>
+    <li><a href="#s5">高效沟通</a></li>
+    <li><a href="#s6">管理你的会话</a></li>
+    <li><a href="#s7">自动化与规模化</a></li>
+    <li><a href="#s8">避免常见失败模式</a></li>
+    <li><a href="#s9">培养你的直觉</a></li>
+  </ol>
+</nav>
+
+<section id="core">
+<h2>核心约束：上下文窗口</h2>
+<p>几乎所有最佳实践都基于同一个约束：<strong>Claude 的上下文窗口填得很快，而且越满性能越差。</strong></p>
+<ul>
+  <li>上下文窗口装着你的整个对话：每条消息、Claude 读过的每个文件、每条命令的输出。</li>
+  <li>一次调试或代码库探索可能就消耗几万 token。</li>
+  <li>LLM 性能随上下文填满而下降——快满时 Claude 会"忘记"早先的指令、犯更多错误。</li>
+  <li><strong>上下文窗口是最重要的待管理资源。</strong>可用自定义状态栏持续追踪用量。</li>
+</ul>
+</section>
+
+<section id="s1">
+<h2><span class="num">1</span>给 Claude 一个能自己验证工作的方法</h2>
+<div class="tip">给 Claude 一个它能运行的检查——测试、构建、截图对比。这是"需要你盯着的会话"和"你能走开的会话"之间的区别。</div>
+<p>Claude 在"看起来完成了"时就停下。没有可运行的检查，"看起来完成"就是唯一信号，于是<strong>你</strong>变成了验证循环：每个错误都得等你发现。给它一个能产出"通过/失败"的东西，循环就能自我闭合——Claude 干活、跑检查、读结果、迭代直到通过。</p>
+<p>检查可以是任何能在对话中读到信号的东西：测试套件、构建退出码、linter、把输出和 fixture 做 diff 的脚本、或浏览器截图与设计稿对比。</p>
+<table>
+  <tr><th>策略</th><th>改进前</th><th>改进后</th></tr>
+  <tr><td>提供验证标准</td><td>"实现一个校验邮箱的函数"</td><td>"写一个 validateEmail 函数。示例用例：user@example.com→true，invalid→false，user@.com→false。实现后运行测试"</td></tr>
+  <tr><td>可视化验证 UI 改动</td><td>"把仪表盘弄好看点"</td><td>"[贴截图] 实现这个设计。完成后截图并与原图对比，列出差异并修复"</td></tr>
+  <tr><td>针对根因而非症状</td><td>"构建失败了"</td><td>"构建报错：[贴错误]。修复并验证构建成功。解决根因，不要把错误压下去"</td></tr>
+</table>
+<p>检查存在后，决定它对"停止"的把关强度：</p>
+<ul>
+  <li><strong>单条 prompt 内</strong>：在同一条消息里要求 Claude 跑检查并迭代。</li>
+  <li><strong>跨会话</strong>：把检查设为 <code>/goal</code> 条件，独立评估器每轮重新检查直到成立。</li>
+  <li><strong>作为确定性闸门</strong>：用 <code>Stop hook</code> 把检查跑成脚本，未通过就阻止结束本轮（连续阻止 8 次后会被覆盖结束）。</li>
+  <li><strong>第二意见</strong>：用验证 subagent 或动态 workflow，让全新模型尝试反驳结果——干活的不当评分的。</li>
+</ul>
+<p>让 Claude <strong>展示证据</strong>而非声称成功：测试输出、运行的命令及返回、结果截图。审查证据比你自己重跑验证更快，对你没盯着的会话也有效。</p>
+</section>
+
+<section id="s2">
+<h2><span class="num">2</span>先探索，再规划，最后写代码</h2>
+<div class="tip">把"研究与规划"和"实现"分开，避免解决错误的问题。</div>
+<p>让 Claude 直接跳到写代码，可能产出解决错问题的代码。用 <strong>plan mode</strong> 把探索和执行分开。推荐的四阶段工作流：</p>
+<ol class="steps">
+  <li><strong>探索（Explore）</strong> — 进入 plan mode。Claude 读文件、回答问题，不做修改。<br>
+    <code>read /src/auth and understand how we handle sessions and login...</code></li>
+  <li><strong>规划（Plan）</strong> — 让 Claude 创建详细实现计划。<br>
+    <code>I want to add Google OAuth. What files need to change? Create a plan.</code><br>
+    按 <code>Ctrl+G</code> 可在文本编辑器里直接编辑计划。</li>
+  <li><strong>实现（Implement）</strong> — 切出 plan mode，让 Claude 写代码并对照计划验证。<br>
+    <code>implement the OAuth flow from your plan. write tests... run the test suite and fix any failures.</code></li>
+  <li><strong>提交（Commit）</strong> — 让 Claude 用描述性信息提交并开 PR。<br>
+    <code>commit with a descriptive message and open a PR</code></li>
+</ol>
+<div class="warn"><strong>何时跳过规划：</strong>plan mode 有用但有开销。范围清晰、改动小的任务（改 typo、加日志、重命名变量）直接做。规划在你不确定方案、改动跨多文件、或不熟悉被改代码时最有用。<strong>如果你能用一句话描述这个 diff，就跳过规划。</strong></div>
+</section>
+
+<section id="s3">
+<h2><span class="num">3</span>在 prompt 中提供具体上下文</h2>
+<div class="tip">指令越精确，需要纠正的次数越少。</div>
+<p>Claude 能推断意图，但读不了你的心。引用具体文件、说明约束、指向示例模式。</p>
+<table>
+  <tr><th>策略</th><th>改进前</th><th>改进后</th></tr>
+  <tr><td>限定范围</td><td>"给 foo.py 加测试"</td><td>"为 foo.py 写测试，覆盖用户已登出的边界情况。不要用 mock。"</td></tr>
+  <tr><td>指向信息源</td><td>"为什么 ExecutionFactory 的 api 这么怪？"</td><td>"查它的 git 历史，总结 api 是怎么演变的"</td></tr>
+  <tr><td>引用已有模式</td><td>"加一个日历组件"</td><td>"看首页现有组件怎么实现，HotDogWidget.php 是好例子，按这个模式实现……只用已有的库"</td></tr>
+  <tr><td>描述症状</td><td>"修登录 bug"</td><td>"会话超时后登录失败，检查 src/auth/ 尤其 token 刷新。先写复现的失败测试，再修"</td></tr>
+</table>
+<blockquote>模糊 prompt 在探索阶段也有用（"这个文件你会改进什么？"能发现你想不到的点），前提是你能承担纠偏成本。</blockquote>
+<h3>提供丰富内容</h3>
+<ul>
+  <li><strong>用 <code>@</code> 引用文件</strong>，而非描述代码在哪。Claude 会先读再答。</li>
+  <li><strong>直接粘贴图片</strong>（复制粘贴或拖拽）。</li>
+  <li><strong>给 URL</strong> 指向文档/API 参考。用 <code>/permissions</code> 把常用域名加白名单。</li>
+  <li><strong>管道喂数据</strong>：<code>cat error.log | claude</code>。</li>
+  <li><strong>让 Claude 自己取</strong>：告诉它用 Bash、MCP 工具或读文件来拉取上下文。</li>
+</ul>
+</section>
+
+<section id="s4">
+<h2><span class="num">4</span>配置你的环境</h2>
+
+<h3>写好 CLAUDE.md</h3>
+<div class="tip">运行 <code>/init</code> 基于当前项目结构生成初版 CLAUDE.md，再逐步打磨。</div>
+<p>CLAUDE.md 是 Claude 在<strong>每次对话开始时都会读</strong>的特殊文件。包含 Bash 命令、代码风格、工作流规则——给 Claude 它无法从代码推断的持久上下文。格式无要求，但<strong>保持简短、人类可读</strong>：</p>
+<pre><code># Code style
+- Use ES modules (import/export) syntax, not CommonJS (require)
+- Destructure imports when possible (eg. import { foo } from 'bar')
+
+# Workflow
+- Be sure to typecheck when you're done making a series of code changes
+- Prefer running single tests, and not the whole test suite, for performance</code></pre>
+<p>CLAUDE.md 每次会话都加载，所以<strong>只放普遍适用的内容</strong>。仅有时相关的领域知识用 <strong>skills</strong> 代替。<strong>保持精简</strong>，每一行都问：<em>"删掉这行会让 Claude 犯错吗？"</em> 不会就删。<strong>臃肿的 CLAUDE.md 会让 Claude 忽略你真正的指令！</strong></p>
+<table>
+  <tr><th>✅ 应包含</th><th>❌ 应排除</th></tr>
+  <tr><td>Claude 猜不到的 Bash 命令</td><td>读代码就能搞清的东西</td></tr>
+  <tr><td>与默认不同的代码风格规则</td><td>已知的标准语言惯例</td></tr>
+  <tr><td>测试说明与首选 test runner</td><td>详细 API 文档（链接即可）</td></tr>
+  <tr><td>仓库礼仪（分支命名、PR 规范）</td><td>频繁变动的信息</td></tr>
+  <tr><td>项目特有的架构决策</td><td>冗长解释或教程</td></tr>
+  <tr><td>开发环境怪癖（必需环境变量）</td><td>逐文件的代码库描述</td></tr>
+  <tr><td>常见坑或非显而易见的行为</td><td>"写干净的代码"这类不言自明的实践</td></tr>
+</table>
+<ul>
+  <li>Claude 总做你不想要的事（尽管有规则）→ 多半文件太长、规则被淹没。</li>
+  <li>把 CLAUDE.md 当代码对待：出问题时审查、定期修剪、观察行为是否真变了来测试改动。</li>
+  <li>可加强调词（<code>IMPORTANT</code>、<code>YOU MUST</code>）提升遵守度。提交到 git 让团队贡献。</li>
+</ul>
+<p>可用 <code>@path/to/import</code> 导入其他文件。<strong>可放置位置</strong>：家目录 <code>~/.claude/CLAUDE.md</code>（所有会话）、项目根 <code>./CLAUDE.md</code>（共享）、<code>./CLAUDE.local.md</code>（个人，加 .gitignore）、父目录（monorepo 自动拉入）、子目录（按需拉入）。</p>
+
+<h3>配置权限</h3>
+<div class="tip">用 auto mode 让分类器处理审批、<code>/permissions</code> 给特定命令加白名单、<code>/sandbox</code> 做 OS 级隔离。</div>
+<ul>
+  <li><strong>Auto mode</strong>：独立分类器审查命令，只拦截有风险的（范围升级、未知基础设施、恶意内容驱动）。</li>
+  <li><strong>权限白名单</strong>：放行确知安全的工具，如 <code>npm run lint</code>、<code>git commit</code>。</li>
+  <li><strong>沙箱</strong>：OS 级隔离，限制文件系统和网络访问，让 Claude 在边界内更自由工作。</li>
+</ul>
+
+<h3>使用 CLI 工具</h3>
+<div class="tip">告诉 Claude 用 <code>gh</code>、<code>aws</code>、<code>gcloud</code>、<code>sentry-cli</code> 等与外部服务交互。</div>
+<p>CLI 工具是与外部服务交互<strong>最省上下文</strong>的方式。用 GitHub 就装 <code>gh</code>。Claude 也擅长学不熟的工具：<code>Use 'foo-cli --help' to learn it, then solve A, B, C.</code></p>
+
+<h3>连接 MCP 服务器</h3>
+<div class="tip">运行 <code>claude mcp add</code> 连接 Notion、Figma 或你的数据库。</div>
+<p>可让 Claude 从 issue tracker 实现功能、查数据库、分析监控数据、集成 Figma 设计、自动化工作流。</p>
+
+<h3>设置 hooks</h3>
+<div class="tip">对"每次都必须发生、零例外"的操作用 hooks。</div>
+<p>Hooks 在工作流特定节点自动运行脚本。不同于 CLAUDE.md（建议性的），<strong>hooks 是确定性的，保证操作发生</strong>。Claude 能帮你写：<em>"写一个在每次文件编辑后运行 eslint 的 hook"</em>。运行 <code>/hooks</code> 浏览已配置的。</p>
+
+<h3>创建 skills</h3>
+<div class="tip">在 <code>.claude/skills/</code> 创建 <code>SKILL.md</code> 给 Claude 领域知识和可复用工作流。</div>
+<pre><code>---
+name: api-conventions
+description: REST API design conventions for our services
+---
+# API Conventions
+- Use kebab-case for URL paths
+- Use camelCase for JSON properties
+- Always include pagination for list endpoints
+- Version APIs in the URL path (/v1/, /v2/)</code></pre>
+<p>对有副作用、想手动触发的工作流，用 <code>disable-model-invocation: true</code>，再用 <code>/skill-name</code> 调用。</p>
+
+<h3>创建自定义 subagents</h3>
+<div class="tip">在 <code>.claude/agents/</code> 定义专门助手，Claude 可委派隔离任务。</div>
+<p>Subagents 在自己的上下文里运行，有自己的允许工具集。适合读很多文件或需要专注、又不想弄乱主对话的任务。明确告诉 Claude：<em>"Use a subagent to review this code for security issues."</em></p>
+
+<h3>安装插件</h3>
+<div class="tip">运行 <code>/plugin</code> 浏览市场。插件无需配置即添加 skills、工具和集成。</div>
+<p>插件把 skills、hooks、subagents、MCP 打包成单个可安装单元。用类型语言可装 code intelligence 插件，获得精确符号导航和编辑后自动错误检测。</p>
+</section>
+
+<section id="s5">
+<h2><span class="num">5</span>高效沟通</h2>
+<h3>问代码库问题</h3>
+<div class="tip">像问资深工程师那样问 Claude。</div>
+<p>上手新代码库时用 Claude 学习探索：日志怎么工作？怎么新建 API 端点？<code>foo.rs</code> 第 134 行的 <code>async move</code> 干嘛的？这是高效 onboarding 工作流，无需特殊 prompt，直接问。</p>
+<h3>让 Claude 来访谈你</h3>
+<div class="tip">对较大的功能，先让 Claude 用 <code>AskUserQuestion</code> 工具访谈你。</div>
+<pre><code>I want to build [brief description]. Interview me in detail using the
+AskUserQuestion tool. Ask about technical implementation, UI/UX, edge cases,
+concerns, and tradeoffs. Don't ask obvious questions, dig into the hard parts
+I might not have considered. Keep interviewing until we've covered everything,
+then write a complete spec to SPEC.md.</code></pre>
+<p>spec 完成后，<strong>开一个全新会话来执行</strong>——干净上下文专注实现。最有用的 spec 是自包含的：点名文件和接口、说明什么不在范围内、以端到端验证步骤收尾。<strong>把 spec 打磨精确，比花时间盯着实现更值。</strong></p>
+</section>
+
+<section id="s6">
+<h2><span class="num">6</span>管理你的会话</h2>
+<p>对话是持久且可逆的，善用这点！</p>
+<h3>尽早、频繁地纠偏</h3>
+<div class="tip">一发现 Claude 跑偏就纠正。</div>
+<ul>
+  <li><code>Esc</code>：中途停止，上下文保留，可重定向。</li>
+  <li><code>Esc + Esc</code> 或 <code>/rewind</code>：恢复之前的对话和代码状态。</li>
+  <li><code>"Undo that"</code>：让 Claude 回滚改动。</li>
+  <li><code>/clear</code>：在不相关任务之间重置上下文。</li>
+</ul>
+<blockquote>同一问题纠正超过两次→上下文已被失败方案污染。<code>/clear</code> 重新开始。<strong>干净会话 + 更好 prompt，几乎总胜过长会话 + 累积纠正。</strong></blockquote>
+<h3>积极管理上下文</h3>
+<div class="tip">在不相关任务之间运行 <code>/clear</code>。</div>
+<ul>
+  <li>任务间频繁 <code>/clear</code> 彻底重置。自动压缩会保留代码模式、文件状态、关键决策。</li>
+  <li>更可控：<code>/compact Focus on the API changes</code>。</li>
+  <li>只压缩部分：<code>/rewind</code> 选检查点，选 Summarize from here / up to here。</li>
+  <li>在 CLAUDE.md 自定义压缩：<code>"When compacting, always preserve the full list of modified files and any test commands"</code>。</li>
+  <li>不需留存的小问题用 <code>/btw</code>，答案在可关闭浮层，不进对话历史。</li>
+</ul>
+<h3>用 subagents 做调查</h3>
+<div class="tip">用 <code>"use subagents to investigate X"</code> 委派研究。它们在独立上下文探索，保持主对话干净。</div>
+<p>Claude 研究代码库时会读很多文件，全消耗你的上下文。Subagents 在独立上下文窗口运行并只回报摘要，是最强工具之一。也可用于实现后验证：<code>use a subagent to review this code for edge cases</code>。</p>
+<h3>用 checkpoints 回退</h3>
+<div class="tip">你发的每条 prompt 都会创建检查点。可恢复对话、代码或两者到任意之前的检查点。</div>
+<p>双击 <code>Escape</code> 或 <code>/rewind</code> 打开菜单。可以让 Claude 尝试有风险的做法，不行就 rewind 换路子。检查点跨会话持久。</p>
+<div class="warn">检查点只追踪 <strong>Claude 做的</strong>改动，不含外部进程。这<strong>不能替代 git</strong>。</div>
+<h3>恢复对话</h3>
+<div class="tip">用 <code>/rename</code> 给会话命名，像分支一样对待。</div>
+<p><code>claude --continue</code> 接最近会话，<code>claude --resume</code> 从列表选。给会话起描述性名字如 <code>oauth-migration</code> 方便日后查找。</p>
+</section>
+
+<section id="s7">
+<h2><span class="num">7</span>自动化与规模化</h2>
+<h3>非交互模式（headless）</h3>
+<div class="tip">在 CI、pre-commit hook 或脚本里用 <code>claude -p "prompt"</code>。加 <code>--output-format stream-json --verbose</code> 输出流式 JSON。</div>
+<pre><code># 一次性查询
+claude -p "Explain what this project does"
+# 给脚本用的结构化输出
+claude -p "List all API endpoints" --output-format json
+# 实时处理的流式输出
+claude -p "Analyze this log file" --output-format stream-json --verbose</code></pre>
+<h3>运行多个 Claude 会话</h3>
+<div class="tip">并行运行多个会话来加速开发、跑隔离实验或启动复杂工作流。</div>
+<ul>
+  <li><strong>Worktrees</strong>：隔离的 git checkout 里跑独立 CLI 会话，编辑不冲突。</li>
+  <li><strong>桌面应用</strong>：可视化管理多个本地会话，各在自己的 worktree。</li>
+  <li><strong>Claude Code on the web</strong>：在 Anthropic 托管云、隔离 VM 里跑。</li>
+  <li><strong>Agent teams</strong>：自动协调多会话，共享任务、消息和 team lead。</li>
+</ul>
+<p><strong>Writer/Reviewer 模式</strong>：会话 A 实现功能 → 会话 B 在全新上下文审查（不偏袒刚写的代码）→ 会话 A 处理反馈。也可一个写测试、另一个写代码通过测试。</p>
+<h3>跨文件 fan-out</h3>
+<div class="tip">循环对每个任务调用 <code>claude -p</code>。用 <code>--allowedTools</code> 为批量操作限定权限。</div>
+<pre><code>for file in $(cat files.txt); do
+  claude -p "Migrate $file from React to Vue. Return OK or FAIL." \
+    --allowedTools "Edit,Bash(git commit *)"
+done</code></pre>
+<p>先在 2-3 个文件测试打磨 prompt，再跑全集。也可接入管道：<code>claude -p "..." --output-format json | your_command</code>。</p>
+<h3>用 auto mode 自主运行</h3>
+<pre><code>claude --permission-mode auto -p "fix all lint errors"</code></pre>
+<p>分类器在命令运行前审查，拦截风险操作，让常规工作免提示通过。<code>-p</code> 非交互运行若反复被拦会中止（无用户可回退）。</p>
+<h3>加一个对抗式审查步骤</h3>
+<div class="tip">把任务当作完成之前，让一个 subagent 在全新上下文审查 diff 并报告缺口。</div>
+<p>全新 subagent 只看 diff 和你给的标准，看不到产生改动的推理，按自己的标准评估。正确性检查用内置 <code>/code-review</code> skill；对照计划检查则自己写 prompt：</p>
+<pre><code>Use a subagent to review the rate limiter diff against PLAN.md. Check that
+every requirement is implemented, the listed edge cases have tests, and
+nothing outside the task's scope changed. Report gaps, not style preferences.</code></pre>
+<div class="warn">被要求找缺口的审查者通常总会报告一些，即使工作没问题。追逐每个发现会导致过度工程化。<strong>告诉审查者只标记影响正确性或既定需求的缺口，其余视为可选。</strong></div>
+</section>
+
+<section id="s8">
+<h2><span class="num">8</span>避免常见失败模式</h2>
+<table>
+  <tr><th>失败模式</th><th>修复</th></tr>
+  <tr><td><strong>"厨房水槽"会话</strong>：一个任务里穿插无关的事，上下文塞满无关信息。</td><td>不相关任务之间 <code>/clear</code>。</td></tr>
+  <tr><td><strong>反复纠正</strong>：做错→纠正→还错→再纠正，上下文被失败方案污染。</td><td>两次纠正失败后 <code>/clear</code>，写更好的初始 prompt。</td></tr>
+  <tr><td><strong>过度指定的 CLAUDE.md</strong>：太长，重要规则被淹没。</td><td>无情修剪；能做对的删掉或转成 hook。</td></tr>
+  <tr><td><strong>信任却不验证</strong>：看似合理但不处理边界情况。</td><td>永远提供验证（测试/脚本/截图），验证不了别上线。</td></tr>
+  <tr><td><strong>无限探索</strong>：不限范围的"调查"读几百个文件填满上下文。</td><td>窄范围限定，或用 subagents 让探索不消耗主上下文。</td></tr>
+</table>
+</section>
+
+<section id="s9">
+<h2><span class="num">9</span>培养你的直觉</h2>
+<p>这些模式不是铁律，而是普遍有效的起点，未必对每种情况最优。</p>
+<ul>
+  <li>有时你<strong>应该</strong>让上下文累积——深陷一个复杂问题，历史很有价值。</li>
+  <li>有时应该跳过规划，让 Claude 自己摸索——任务是探索性的。</li>
+  <li>有时模糊 prompt 恰恰对——你想先看 Claude 如何解读，再去约束。</li>
+</ul>
+<p><strong>留意什么有效。</strong>Claude 产出很棒时注意你做了什么（prompt 结构、上下文、模式）；卡住时问为什么（上下文太杂？prompt 太模糊？任务太大？）。随时间你会培养出任何指南都无法捕捉的直觉。</p>
+</section>
+
+<footer>
+  <strong>相关资源</strong><br>
+  · How Claude Code works — <a href="https://code.claude.com/docs/en/how-claude-code-works">agentic loop、工具、上下文管理</a><br>
+  · Extend Claude Code — <a href="https://code.claude.com/docs/en/features-overview">skills、hooks、MCP、subagents、plugins</a><br>
+  · Common workflows — <a href="https://code.claude.com/docs/en/common-workflows">调试、测试、PR 等分步配方</a><br>
+  · CLAUDE.md / memory — <a href="https://code.claude.com/docs/en/memory">存储项目惯例与持久上下文</a><br><br>
+  来源 Anthropic 官方文档 · 整理于 2026-05-29
+</footer>
+
+</div>
+</body>
+</html>

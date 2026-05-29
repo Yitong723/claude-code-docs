@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>高效 Vibe Coding 流程 · Idea → Demo → Product</title>
+<style>
+  :root{
+    --bg:#faf7f2;
+    --ink:#2b2722;
+    --muted:#7a7065;
+    --line:#e6ded2;
+    --card:#ffffff;
+    --accent:#c8643c;
+    --accent-soft:#f4e3d8;
+    --green:#5b7a4f;
+    --code-bg:#2b2722;
+    --code-ink:#f0e9df;
+    --max:760px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.85;
+    font-size:17px;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* progress bar */
+  #progress{
+    position:fixed;top:0;left:0;height:3px;width:0%;
+    background:linear-gradient(90deg,var(--accent),#e0925f);
+    z-index:100;transition:width .1s linear;
+  }
+
+  .wrap{max-width:var(--max);margin:0 auto;padding:0 24px;}
+
+  /* hero */
+  header.hero{
+    padding:90px 24px 60px;
+    text-align:center;
+    border-bottom:1px solid var(--line);
+    background:
+      radial-gradient(ellipse 600px 300px at 50% -10%, var(--accent-soft), transparent);
+  }
+  .hero .kicker{
+    display:inline-block;
+    font-size:13px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;margin-bottom:22px;
+    padding:6px 14px;border:1px solid var(--accent);border-radius:30px;
+  }
+  .hero h1{
+    font-size:38px;line-height:1.3;margin:0 0 18px;font-weight:800;
+    letter-spacing:-.01em;
+  }
+  .hero p.lead{
+    max-width:620px;margin:0 auto;color:var(--muted);font-size:18px;
+  }
+  .hero p.lead b{color:var(--ink);}
+
+  /* TOC */
+  nav.toc{
+    max-width:var(--max);margin:40px auto;padding:26px 30px;
+    background:var(--card);border:1px solid var(--line);border-radius:16px;
+    box-shadow:0 1px 0 rgba(0,0,0,.02);
+  }
+  nav.toc h2{font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0 0 16px;font-weight:700;}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:toc;}
+  nav.toc li{counter-increment:toc;margin:0;}
+  nav.toc a{
+    display:flex;align-items:baseline;gap:14px;
+    padding:9px 0;color:var(--ink);text-decoration:none;
+    border-bottom:1px dashed var(--line);font-size:16px;
+  }
+  nav.toc li:last-child a{border-bottom:none;}
+  nav.toc a::before{
+    content:counter(toc,decimal-leading-zero);
+    color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;
+    font-size:14px;min-width:24px;
+  }
+  nav.toc a:hover{color:var(--accent);}
+
+  /* sections */
+  section{padding:54px 0 10px;}
+  section + section{border-top:1px solid var(--line);}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:8px;}
+  .sec-num{
+    flex:none;width:44px;height:44px;border-radius:12px;
+    background:var(--accent);color:#fff;font-weight:800;font-size:18px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  h2.title{font-size:26px;margin:0;font-weight:800;letter-spacing:-.01em;}
+  .sec-goal{
+    margin:18px 0 26px;padding:14px 18px;
+    background:var(--accent-soft);border-radius:10px;
+    font-size:15.5px;color:#7a4a30;
+  }
+  .sec-goal b{color:#5a3320;}
+
+  h3.step{
+    font-size:18px;margin:30px 0 10px;font-weight:700;
+    display:flex;align-items:center;gap:10px;
+  }
+  h3.step .dot{
+    width:9px;height:9px;border-radius:50%;background:var(--accent);flex:none;
+  }
+  p{margin:10px 0;}
+  ul{margin:8px 0 8px;padding-left:0;list-style:none;}
+  ul li{position:relative;padding-left:22px;margin:8px 0;}
+  ul li::before{content:"–";position:absolute;left:4px;color:var(--accent);font-weight:700;}
+  code{
+    background:#efe7db;color:#9c4a28;padding:1px 6px;border-radius:5px;
+    font-family:"SF Mono",Menlo,Consolas,monospace;font-size:14px;
+  }
+  b{color:var(--ink);}
+
+  /* tip callout */
+  .tip{
+    margin:20px 0;padding:16px 18px 16px 20px;
+    background:#fffdf7;border:1px solid var(--line);border-left:4px solid #e0a93f;
+    border-radius:0 10px 10px 0;font-size:15.5px;
+  }
+  .tip b{color:#9a6b14;}
+
+  /* table */
+  .table-card{overflow-x:auto;margin:24px 0;border:1px solid var(--line);border-radius:14px;}
+  table{width:100%;border-collapse:collapse;background:var(--card);font-size:15.5px;}
+  th,td{text-align:left;padding:14px 18px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{background:#f3ece1;font-weight:700;color:var(--ink);font-size:14px;letter-spacing:.02em;}
+  tr:last-child td{border-bottom:none;}
+  td:first-child{white-space:nowrap;font-weight:700;color:var(--accent);width:1%;}
+
+  /* pipeline / code block */
+  pre{
+    background:var(--code-bg);color:var(--code-ink);
+    padding:24px 22px;border-radius:14px;overflow-x:auto;
+    font-family:"SF Mono",Menlo,Consolas,monospace;font-size:14px;line-height:1.7;
+    margin:24px 0;
+  }
+  pre .a{color:#e0925f;}
+  pre .g{color:#9bbf8a;}
+  pre .m{color:#9a9082;}
+
+  /* ROI numbered cards */
+  .roi{display:grid;gap:14px;margin:24px 0;}
+  .roi-item{
+    display:flex;gap:16px;align-items:flex-start;
+    background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;
+  }
+  .roi-item .n{
+    flex:none;width:34px;height:34px;border-radius:50%;
+    background:var(--green);color:#fff;font-weight:800;
+    display:flex;align-items:center;justify-content:center;font-size:16px;
+  }
+  .roi-item p{margin:0;font-size:16px;}
+
+  footer{
+    text-align:center;color:var(--muted);font-size:14px;
+    padding:50px 24px 70px;border-top:1px solid var(--line);margin-top:40px;
+  }
+  footer .accent{color:var(--accent);font-weight:700;}
+
+  /* back to top */
+  #top{
+    position:fixed;right:24px;bottom:24px;
+    width:46px;height:46px;border-radius:50%;
+    background:var(--accent);color:#fff;border:none;cursor:pointer;
+    font-size:20px;box-shadow:0 4px 16px rgba(200,100,60,.4);
+    opacity:0;pointer-events:none;transition:opacity .25s;z-index:50;
+  }
+  #top.show{opacity:1;pointer-events:auto;}
+
+  @media(max-width:640px){
+    body{font-size:16px;}
+    .hero h1{font-size:29px;}
+    section{padding:42px 0 6px;}
+    h2.title{font-size:22px;}
+  }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<header class="hero">
+  <span class="kicker">AI-Native Workflow</span>
+  <h1>高效 Vibe Coding 流程<br>从 Idea → Demo → Product</h1>
+  <p class="lead">核心思路一句话：让 Claude 写代码之前，先逼它（和你自己）把<b>「要做什么、怎么验证」</b>想清楚——Vibe Coding 的效率不在于打字快，而在于把<b>规划、上下文、验证</b>这三件事做扎实。</p>
+</header>
+
+<div class="wrap">
+
+  <nav class="toc">
+    <h2>目录</h2>
+    <ol>
+      <li><a href="#mindset">全局心法（贯穿始终）</a></li>
+      <li><a href="#s1">Idea → 想清楚（Explore + Plan）</a></li>
+      <li><a href="#s2">搭好「上下文地基」（项目初始化）</a></li>
+      <li><a href="#s3">Plan → Demo（快速原型）</a></li>
+      <li><a href="#s4">Demo → Product（工程化加固）</a></li>
+      <li><a href="#s5">贯穿全程的「提效杠杆」</a></li>
+      <li><a href="#pipeline">一页速查：完整流水线</a></li>
+      <li><a href="#roi">3 个最高 ROI 建议</a></li>
+    </ol>
+  </nav>
+
+  <!-- 心法 -->
+  <section id="mindset">
+    <div class="sec-head">
+      <div class="sec-num">0</div>
+      <h2 class="title">全局心法（贯穿始终）</h2>
+    </div>
+    <div class="table-card">
+      <table>
+        <thead><tr><th>原则</th><th>含义</th></tr></thead>
+        <tbody>
+          <tr><td>Explore → Plan → Code → Commit</td><td>官方最推荐的基本节奏。绝大多数「AI 写出一堆垃圾」都是跳过了前两步。</td></tr>
+          <tr><td>上下文 = 生产力</td><td>模型只能用它「看得到」的东西。你的工作很大程度上是上下文工程（CLAUDE.md / 截图 / 文档 / 引用文件）。</td></tr>
+          <tr><td>可验证性优先</td><td>每一步都要有「怎么知道它对了」的手段：测试、运行截图、类型检查。没有验证的 vibe coding 会在 product 阶段崩盘。</td></tr>
+          <tr><td>小步提交</td><td>每个能跑通的节点就 commit，方便回滚。AI 改坏了就 <code>git reset</code>，比让它「修复」更快。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 阶段一 -->
+  <section id="s1">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <h2 class="title">Idea → 想清楚（Explore + Plan）</h2>
+    </div>
+    <div class="sec-goal"><b>目标：</b>在写任何代码前，把模糊的 idea 变成明确的需求和技术方案。</div>
+
+    <h3 class="step"><span class="dot"></span>先用对话 / 头脑风暴展开想法</h3>
+    <ul>
+      <li>用 <code>/brainstorming</code>（或直接对话）逼自己回答：用户是谁？核心 flow 是什么？最小可行切片是什么？MVP 砍到什么程度？</li>
+      <li>让 Claude 扮演产品质疑者：「帮我挑战这个 idea 的 3 个最大风险」。</li>
+    </ul>
+
+    <h3 class="step"><span class="dot"></span>进入 Plan Mode（关键）</h3>
+    <ul>
+      <li>用 <b>Shift+Tab</b> 切到 plan mode。Plan mode 下 Claude <b>只读不写</b>，会先探索代码 / 调研技术栈，产出一份实施计划让你审。</li>
+      <li>对新项目：让它先调研技术选型（「对比 Next.js vs Vite + Express 做这个 demo 的取舍」）。</li>
+    </ul>
+
+    <h3 class="step"><span class="dot"></span>沉淀技术方案为文件</h3>
+    <ul>
+      <li>让 Claude 把计划写成 <code>PLAN.md</code> / <code>SPEC.md</code>（<code>/writing-plans</code> 技能就是干这个的）。<b>好处：计划是文件 = 可审查、可版本化、可在新 session 里复用</b>，不会随对话丢失。</li>
+    </ul>
+
+    <div class="tip">💡 <b>Tip：</b>这一步最值钱。一份你亲自审过的 plan，能让后面 80% 的代码一次成型。不要急着看到代码。</div>
+  </section>
+
+  <!-- 阶段二 -->
+  <section id="s2">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <h2 class="title">搭好「上下文地基」（项目初始化）</h2>
+    </div>
+    <div class="sec-goal"><b>目标：</b>让 Claude 在整个项目周期里都「懂」你的代码和规范。</div>
+
+    <h3 class="step"><span class="dot"></span><code>/init</code> 生成 CLAUDE.md</h3>
+    <ul>
+      <li>在项目根目录运行 <code>/init</code>，它会扫描代码库生成 <code>CLAUDE.md</code>（项目记忆）。</li>
+      <li>手动补充：常用命令（build/test/lint/dev）、目录结构约定、代码风格、「不要做什么」的红线。<b>这个文件每次都会自动加载进上下文。</b></li>
+    </ul>
+
+    <h3 class="step"><span class="dot"></span>分层记忆</h3>
+    <ul>
+      <li><code>./CLAUDE.md</code>（项目级，进 git，团队共享）</li>
+      <li><code>~/.claude/CLAUDE.md</code>（个人全局偏好）</li>
+      <li>子目录可放局部 <code>CLAUDE.md</code>。</li>
+    </ul>
+
+    <h3 class="step"><span class="dot"></span>接入外部上下文（按需）</h3>
+    <ul>
+      <li><b>MCP servers</b>：连数据库、Figma、Sentry、文档站等，让 Claude 能直接读真实数据 / 设计稿。</li>
+      <li><b>截图 / 设计稿</b>：做前端时直接把 UI 截图拖进来，让它「照着实现」。</li>
+    </ul>
+  </section>
+
+  <!-- 阶段三 -->
+  <section id="s3">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <h2 class="title">Plan → Demo（快速原型）</h2>
+    </div>
+    <div class="sec-goal"><b>目标：</b>用最快速度做出能跑、能看、能点的原型，验证 idea 成不成立。</div>
+
+    <h3 class="step"><span class="dot"></span>按计划分块实现</h3>
+    <ul>
+      <li>让 Claude 按 <code>PLAN.md</code> 一个模块一个模块地实现，而不是「一次给我全部」。</li>
+      <li>用 <code>/executing-plans</code> 或 <code>/subagent-driven-development</code> 这类技能，把计划拆成带 review checkpoint 的执行流。</li>
+    </ul>
+
+    <h3 class="step"><span class="dot"></span>demo 阶段允许「糙」，但要能跑</h3>
+    <ul>
+      <li>优先打通 happy path（核心主流程跑通），先不管边界情况。</li>
+      <li><b>立刻运行：</b>用 <code>/run</code> 启动 app、<code>/verify</code> 确认行为符合预期。让 Claude 自己跑 dev server、截图、读报错——形成「写 → 跑 → 看 → 改」的闭环。</li>
+    </ul>
+
+    <h3 class="step"><span class="dot"></span>前端原型用 <code>/frontend-design</code></h3>
+    <ul><li>避免千篇一律的「AI 味」UI，产出有设计感的界面。</li></ul>
+
+    <h3 class="step"><span class="dot"></span>每个里程碑 commit</h3>
+    <ul><li>demo 能点通了就提交。这是你的安全网。</li></ul>
+
+    <div class="tip">💡 <b>Tip：</b>demo 阶段最忌「完美主义」。目标是<b>最快拿到反馈</b>（给自己、给用户、给合伙人看），而不是代码质量。质量留给阶段四。</div>
+  </section>
+
+  <!-- 阶段四 -->
+  <section id="s4">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <h2 class="title">Demo → Product（工程化加固）</h2>
+    </div>
+    <div class="sec-goal"><b>目标：</b>把「能跑的 demo」变成「敢上线、能维护、不会半夜被叫起来」的产品。这一步是 vibe coding 最容易翻车、也最体现功力的地方。按重要性排序：</div>
+
+    <h3 class="step"><span class="dot"></span>① 测试驱动（最重要的护城河）</h3>
+    <ul>
+      <li>用 <code>/test-driven-development</code>：让 Claude <b>先写测试</b>（基于真实预期，不是它脑补的），你确认测试合理，再让它写实现直到测试通过。</li>
+      <li>这是防止「AI 改 A 弄坏 B」的根本手段。product 阶段没有测试 = 裸奔。</li>
+    </ul>
+
+    <h3 class="step"><span class="dot"></span>② 系统化调试，而不是「再试一次」</h3>
+    <ul>
+      <li>遇到 bug 用 <code>/systematic-debugging</code>：先复现、定位根因、再改，而不是让 AI 乱猜补丁。</li>
+      <li>善用 git：改坏了 <code>git reset --hard</code> 回到上一个 commit，比纠缠「修复」高效。</li>
+    </ul>
+
+    <h3 class="step"><span class="dot"></span>③ 代码审查</h3>
+    <ul>
+      <li>自查：<code>/code-review</code>（按 effort 分级）、<code>/simplify</code>（清理冗余）。</li>
+      <li>重要分支 / PR：<code>/code-review ultra</code> 启动多 agent 云端深度审查，或 <code>/security-review</code> 做安全审查。</li>
+      <li>收到 review 意见时用 <code>/receiving-code-review</code>——<b>不要盲目照单全收</b>，要核实建议是否真的对。</li>
+    </ul>
+
+    <h3 class="step"><span class="dot"></span>④ 完成前强制验证</h3>
+    <ul><li>用 <code>/verification-before-completion</code>：声称「做完了 / 修好了」之前，必须真的跑命令、看输出。杜绝「我觉得应该好了」。</li></ul>
+
+    <h3 class="step"><span class="dot"></span>⑤ 并行化提速（项目变大后）</h3>
+    <ul>
+      <li><b>Subagents</b>：把独立任务（写测试 + 更新文档 + 重构模块）派给并行 agent，<code>/dispatching-parallel-agents</code>。</li>
+      <li><b>Git worktrees</b>：<code>/using-git-worktrees</code> 让多个任务在隔离的工作区并行，互不污染。</li>
+    </ul>
+
+    <h3 class="step"><span class="dot"></span>⑥ 自动化与防护栏</h3>
+    <ul>
+      <li><b>Hooks</b>：在 settings.json 配 hook，实现「每次保存自动 lint/format」「提交前自动跑测试」等——这些是<b>确定性</b>的，比每次提醒 Claude 可靠。用 <code>/update-config</code> 配置。</li>
+      <li><b>CI/CD</b>：让 Claude 帮你写 GitHub Actions，把测试 / lint / 构建自动化。</li>
+    </ul>
+
+    <h3 class="step"><span class="dot"></span>⑦ 收尾</h3>
+    <ul><li><code>/finishing-a-development-branch</code>：完成后规范地 merge / 开 PR / 清理分支。</li></ul>
+  </section>
+
+  <!-- 阶段五 -->
+  <section id="s5">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <h2 class="title">贯穿全程的「提效杠杆」</h2>
+    </div>
+    <p>这些不属于某一步，但用好了能整体翻倍：</p>
+    <ul>
+      <li><b>记忆系统</b>：用 <code>#</code> 快捷记忆，或让它写入 <code>CLAUDE.md</code> / memory 文件，跨 session 记住你的偏好和项目约定。</li>
+      <li><b>自定义 Slash Commands / Skills</b>：把你反复做的流程封装成可复用技能（<code>skill-creator</code>）。这就是 AI-native 的精髓。</li>
+      <li><b><code>/clear</code> 管理上下文</b>：任务切换时清空上下文，避免旧任务干扰、避免 token 浪费。长任务自动压缩也会保留摘要。</li>
+      <li><b>图片 / 文档输入</b>：报错截图、设计稿、API 文档直接喂进去，远比文字描述高效。</li>
+      <li><b>Plan mode 当默认</b>：养成「先 Shift+Tab 看计划再放行」的肌肉记忆。</li>
+    </ul>
+  </section>
+
+  <!-- 流水线 -->
+  <section id="pipeline">
+    <div class="sec-head">
+      <div class="sec-num">★</div>
+      <h2 class="title">一页速查：完整流水线</h2>
+    </div>
+<pre><span class="a">IDEA</span>
+ │  /brainstorming  <span class="m">→ 想清楚做什么、砍出 MVP</span>
+ ▼
+<span class="a">PLAN</span>  (Plan Mode, Shift+Tab)
+ │  调研 → 出方案 → 写入 PLAN.md / SPEC.md  <span class="g">← 你亲自审！</span>
+ ▼
+<span class="a">SETUP</span>
+ │  /init 生成 CLAUDE.md + 配命令/规范 + 接 MCP
+ ▼
+<span class="a">DEMO</span>
+ │  按计划分块实现 → /run + /verify 跑起来看 → 每个里程碑 commit
+ │  <span class="m">(前端用 /frontend-design)</span>
+ ▼
+<span class="a">PRODUCT</span>
+ │  /test-driven-development      <span class="m">(测试护城河)</span>
+ │  /systematic-debugging         <span class="m">(根因调试)</span>
+ │  /code-review + /security-review  <span class="m">(审查)</span>
+ │  /verification-before-completion  <span class="m">(验证后才算完)</span>
+ │  subagents + worktrees + hooks/CI <span class="m">(并行 & 自动化)</span>
+ ▼
+<span class="a">SHIP</span>
+    /finishing-a-development-branch <span class="m">→ PR / merge</span></pre>
+  </section>
+
+  <!-- ROI -->
+  <section id="roi">
+    <div class="sec-head">
+      <div class="sec-num">✓</div>
+      <h2 class="title">给你的 3 个最高 ROI 建议</h2>
+    </div>
+    <div class="roi">
+      <div class="roi-item"><div class="n">1</div><p><b>永远先 plan 再 code</b>——这一个习惯就能消除大半返工。</p></div>
+      <div class="roi-item"><div class="n">2</div><p><b>product 阶段把测试当成不可谈判项</b>——这是 demo 和真产品的分水岭。</p></div>
+      <div class="roi-item"><div class="n">3</div><p><b>把重复流程沉淀成 CLAUDE.md + 自定义 skill</b>——把这套方法迁移到任何新产品上即可。</p></div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <span class="accent">Vibe Coding Workflow</span> · 用 Claude Code 全程辅助 · Idea → Demo → Product
+</footer>
+
+<button id="top" title="回到顶部">↑</button>
+
+<script>
+  const bar=document.getElementById('progress');
+  const top=document.getElementById('top');
+  function onScroll(){
+    const h=document.documentElement;
+    const scrolled=h.scrollTop/(h.scrollHeight-h.clientHeight)*100;
+    bar.style.width=scrolled+'%';
+    top.classList.toggle('show', h.scrollTop>500);
+  }
+  document.addEventListener('scroll',onScroll,{passive:true});
+  top.addEventListener('click',()=>window.scrollTo({top:0,behavior:'smooth'}));
+  onScroll();
+</script>
+</body>
+</html>
