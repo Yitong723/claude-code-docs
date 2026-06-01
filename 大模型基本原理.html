@@ -1,0 +1,2629 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM 知识地图 · 一条完整的知识链</title>
+<style>
+  :root{
+    --bg:#f4ece0; --paper:#fbf6ec; --ink:#2b2620; --ink-soft:#6a6155;
+    --line:#d9cab3; --accent:#b8512a; --accent-soft:#e9d6c4;
+    --c1:#b8512a; --c2:#3d6480; --c3:#5a7a3d; --c4:#b8862a;
+    --c5:#8a3d4a; --c6:#6a5a8a; --c7:#c46a3d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink); font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;
+    line-height:1.65; min-height:100vh;
+  }
+  header{
+    padding:36px 48px 24px; border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg, var(--bg) 0%, rgba(244,236,224,0.7) 100%);
+  }
+  .eyebrow{font-size:11px;letter-spacing:.3em;color:var(--ink-soft);text-transform:uppercase;margin-bottom:8px}
+  h1{font-family:"Source Han Serif SC","Songti SC",Georgia,serif;font-size:34px;font-weight:600;margin-bottom:8px}
+  .lead{color:var(--ink-soft);font-size:14.5px;max-width:880px}
+  .hint{margin-top:14px;display:inline-block;background:var(--accent-soft);border-left:3px solid var(--accent);
+    padding:8px 14px;font-size:12.5px;color:var(--ink);border-radius:0 4px 4px 0}
+
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px;font-size:12px;color:var(--ink-soft)}
+  .legend-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
+
+  /* mind map canvas */
+  .canvas-wrap{position:relative;width:100%;overflow:auto;background:var(--bg)}
+  #canvas{position:relative;margin:0 auto;width:1400px;}
+  #svg{position:absolute;top:0;left:0;pointer-events:none;z-index:1}
+  .node{
+    position:absolute;background:var(--paper);border:1.5px solid var(--line);
+    border-radius:10px;padding:10px 14px;cursor:pointer;z-index:2;
+    transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    box-shadow:0 1px 3px rgba(60,40,20,.05);
+  }
+  .node:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(60,40,20,.12);border-color:var(--ink-soft)}
+  .node .title{font-weight:600;font-size:14px;color:var(--ink);white-space:nowrap}
+  .node .short{font-size:11.5px;color:var(--ink-soft);margin-top:3px;line-height:1.4}
+
+  .node.root{
+    background:var(--ink);color:#fbf6ec;border-color:var(--ink);
+    padding:18px 22px;width:170px;text-align:center;
+  }
+  .node.root .title{color:#fbf6ec;font-size:22px;font-family:"Source Han Serif SC","Songti SC",Georgia,serif}
+  .node.root .short{color:#d9cab3;font-size:12px;margin-top:6px}
+
+  .node.branch{font-weight:600;width:165px}
+  .node.branch .title{font-size:15px}
+  .node.branch .short{margin-top:4px}
+  .node.leaf{width:235px}
+
+  /* per-branch tint on title bar */
+  .node.branch[data-c="1"]{border-left:4px solid var(--c1)}
+  .node.branch[data-c="2"]{border-left:4px solid var(--c2)}
+  .node.branch[data-c="3"]{border-left:4px solid var(--c3)}
+  .node.branch[data-c="4"]{border-left:4px solid var(--c4)}
+  .node.branch[data-c="5"]{border-left:4px solid var(--c5)}
+  .node.branch[data-c="6"]{border-left:4px solid var(--c6)}
+  .node.branch[data-c="7"]{border-left:4px solid var(--c7)}
+  .node.leaf[data-c="1"]:hover{border-color:var(--c1)}
+  .node.leaf[data-c="2"]:hover{border-color:var(--c2)}
+  .node.leaf[data-c="3"]:hover{border-color:var(--c3)}
+  .node.leaf[data-c="4"]:hover{border-color:var(--c4)}
+  .node.leaf[data-c="5"]:hover{border-color:var(--c5)}
+  .node.leaf[data-c="6"]:hover{border-color:var(--c6)}
+  .node.leaf[data-c="7"]:hover{border-color:var(--c7)}
+
+  /* search + progress controls */
+  .controls{display:flex;gap:16px;align-items:center;margin-top:18px;flex-wrap:wrap}
+  #search{flex:1;min-width:240px;max-width:420px;padding:9px 14px;border:1.5px solid var(--line);
+    border-radius:8px;background:var(--paper);font-size:13.5px;color:var(--ink);outline:none;
+    font-family:inherit;transition:border-color .15s ease, box-shadow .15s ease}
+  #search:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .progress{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink-soft)}
+  #progress-count{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+  .ghost-btn{background:transparent;border:1px solid var(--line);color:var(--ink-soft);
+    padding:5px 10px;border-radius:5px;cursor:pointer;font-size:11.5px;font-family:inherit;
+    transition:all .15s ease}
+  .ghost-btn:hover{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+
+  /* node states: read + search dim/match */
+  .node{transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease,
+    opacity .25s ease, filter .25s ease, background .2s ease}
+  .node.dim{opacity:.18;filter:saturate(0.35)}
+  .node.match{box-shadow:0 0 0 2px var(--accent), 0 8px 22px rgba(184,81,42,.28);
+    border-color:var(--accent);z-index:4}
+  .node.read{background:#eef0e0;border-color:#bcc7a3}
+  .node.read.root{background:#3d4a2b;border-color:#3d4a2b}
+
+  .node-check{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;
+    background:var(--paper);border:1.5px solid var(--line);cursor:pointer;display:flex;
+    align-items:center;justify-content:center;font-size:11px;color:transparent;
+    transition:all .15s ease;z-index:3;line-height:1;font-weight:700}
+  .node-check::before{content:"✓"}
+  .node:hover .node-check{border-color:var(--ink-soft);color:var(--ink-soft)}
+  .node.read .node-check{background:#5a7a3d;border-color:#5a7a3d;color:white}
+
+  /* drawer */
+  .drawer-mask{position:fixed;inset:0;background:rgba(43,38,32,.4);opacity:0;pointer-events:none;
+    transition:opacity .25s ease;z-index:50}
+  .drawer{position:fixed;top:0;right:0;height:100vh;width:min(640px,92vw);background:var(--paper);
+    box-shadow:-12px 0 32px rgba(60,40,20,.15);transform:translateX(100%);transition:transform .3s ease;
+    z-index:60;display:flex;flex-direction:column}
+  .drawer.open{transform:translateX(0)}
+  .drawer-mask.open{opacity:1;pointer-events:auto}
+  .drawer-head{padding:24px 32px 18px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+  .drawer-head .tag{display:inline-block;padding:3px 10px;border-radius:3px;font-size:11px;
+    background:var(--accent-soft);color:var(--accent);font-weight:600;letter-spacing:.05em;margin-bottom:8px}
+  .drawer-head h2{font-family:"Source Han Serif SC","Songti SC",Georgia,serif;font-size:24px;font-weight:600}
+  .drawer-head .en{color:var(--ink-soft);font-size:13px;font-style:italic;margin-top:2px}
+  .drawer-head .tagline{color:var(--ink);font-size:14px;margin-top:10px;line-height:1.55}
+  .close-btn{background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink-soft);padding:4px 8px;border-radius:4px;line-height:1}
+  .close-btn:hover{background:var(--accent-soft);color:var(--accent)}
+
+  .drawer-body{padding:20px 32px 60px;overflow-y:auto;flex:1;font-size:14.5px}
+  .drawer-body h3{font-family:"Source Han Serif SC","Songti SC",Georgia,serif;font-size:16px;font-weight:600;
+    margin:22px 0 8px;color:var(--ink);padding-bottom:4px;border-bottom:1px dashed var(--line)}
+  .drawer-body h3:first-child{margin-top:0}
+  .drawer-body p{margin:8px 0;color:var(--ink)}
+  .drawer-body ul,.drawer-body ol{margin:8px 0 8px 22px}
+  .drawer-body li{margin:4px 0}
+  .drawer-body strong{color:var(--accent)}
+  .drawer-body code,.drawer-body pre{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:13px;
+    background:var(--accent-soft);color:var(--ink);padding:1px 6px;border-radius:3px}
+  .drawer-body pre{padding:12px 14px;border-radius:6px;overflow-x:auto;line-height:1.55;margin:10px 0}
+  .drawer-body blockquote{border-left:3px solid var(--accent);background:var(--accent-soft);
+    padding:10px 14px;margin:10px 0;border-radius:0 4px 4px 0;font-size:13.5px;color:var(--ink)}
+  .drawer-body table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px}
+  .drawer-body th,.drawer-body td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  .drawer-body th{background:#ede0cc;font-weight:600}
+
+  footer{padding:32px 48px 64px;color:var(--ink-soft);font-size:13px;text-align:center;border-top:1px solid var(--line);margin-top:20px}
+
+  /* ========== highlights + notes + sync UI ========== */
+  .drawer-body mark.hl{padding:0 2px;border-radius:2px;cursor:pointer;
+    transition:filter .15s ease}
+  .drawer-body mark.hl:hover{filter:brightness(.95)}
+  .drawer-body mark.hl-yellow{background:#fff3a8;color:inherit}
+  .drawer-body mark.hl-red{background:#ffc8c8;color:inherit}
+  .drawer-body mark.hl.has-note{box-shadow:inset 0 -2px 0 var(--accent)}
+  .drawer-body mark.hl.has-note::after{content:"●";font-size:8px;vertical-align:super;
+    color:var(--accent);margin-left:1px;line-height:1}
+
+  .hl-toolbar{position:absolute;display:none;z-index:80;
+    background:var(--ink);padding:4px;border-radius:6px;
+    box-shadow:0 4px 12px rgba(0,0,0,.25);gap:4px}
+  .hl-toolbar.open{display:flex}
+  .hl-btn{border:none;cursor:pointer;padding:5px 12px;border-radius:4px;
+    font-size:12px;font-family:inherit;font-weight:600}
+  .hl-btn-yellow{background:#fff3a8;color:#5a4a00}
+  .hl-btn-red{background:#ffc8c8;color:#6a2020}
+
+  .hl-popover{position:absolute;display:none;z-index:80;width:260px;
+    background:var(--paper);border:1px solid var(--line);border-radius:6px;
+    padding:10px;box-shadow:0 8px 22px rgba(0,0,0,.18)}
+  .hl-popover.open{display:block}
+  .hl-popover textarea{width:100%;font-family:inherit;font-size:12.5px;
+    border:1px solid var(--line);border-radius:4px;padding:6px 8px;resize:vertical;
+    background:#fffdf8;color:var(--ink);line-height:1.5;outline:none;min-height:54px}
+  .hl-popover textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+  .hl-pop-actions{display:flex;justify-content:space-between;margin-top:8px;gap:6px}
+  .hl-pop-actions button{padding:5px 12px;border:1px solid var(--line);background:var(--paper);
+    border-radius:4px;cursor:pointer;font-family:inherit;font-size:12px;color:var(--ink-soft)}
+  .hl-pop-actions button:hover{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+  .hl-pop-actions .hl-remove{color:#8a3d4a}
+  .hl-pop-actions .hl-remove:hover{background:#ffe0e0;border-color:#8a3d4a;color:#8a3d4a}
+
+  .notepad-wrap{margin-top:36px;padding-top:18px;border-top:2px dashed var(--line)}
+  .notepad-wrap h3{font-size:13px;color:var(--ink-soft);margin-bottom:8px;
+    letter-spacing:.05em;font-weight:600;text-transform:uppercase}
+  .notepad-wrap textarea{width:100%;min-height:120px;font-family:inherit;font-size:14px;
+    border:1px solid var(--line);border-radius:6px;padding:12px 14px;resize:vertical;
+    background:#fffdf8;color:var(--ink);line-height:1.6;outline:none;
+    transition:border-color .15s ease, box-shadow .15s ease}
+  .notepad-wrap textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .notepad-meta{font-size:11px;color:var(--ink-soft);margin-top:6px;text-align:right;
+    font-variant-numeric:tabular-nums}
+
+  .sync-bar{position:fixed;top:14px;right:18px;z-index:55;display:flex;gap:10px;
+    align-items:center;background:var(--paper);padding:6px 10px;border-radius:20px;
+    border:1px solid var(--line);box-shadow:0 2px 6px rgba(60,40,20,.08)}
+  .sync-dot{width:10px;height:10px;border-radius:50%;background:#aaa;
+    box-shadow:0 0 0 2px rgba(0,0,0,.04);cursor:help;transition:background .2s ease}
+  .sync-dot.synced{background:#5a7a3d}
+  .sync-dot.syncing{background:#b8862a;animation:syncpulse 1s ease-in-out infinite}
+  .sync-dot.error{background:#8a3d4a;cursor:pointer}
+  .sync-dot.local{background:#aaa}
+  @keyframes syncpulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .sync-gear{background:transparent;border:none;cursor:pointer;font-size:14px;
+    color:var(--ink-soft);padding:0;line-height:1}
+  .sync-gear:hover{color:var(--accent)}
+
+  .settings-mask{position:fixed;inset:0;background:rgba(43,38,32,.45);display:none;
+    z-index:90;align-items:center;justify-content:center}
+  .settings-mask.open{display:flex}
+  .settings-panel{background:var(--paper);padding:24px 28px;border-radius:8px;
+    width:min(520px,92vw);max-height:90vh;overflow-y:auto;
+    box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .settings-panel h3{font-size:18px;margin-bottom:14px;color:var(--ink);
+    font-family:"Source Han Serif SC","Songti SC",Georgia,serif}
+  .settings-panel label{display:block;font-size:13px;margin:12px 0;color:var(--ink-soft)}
+  .settings-panel input{width:100%;padding:8px 10px;border:1px solid var(--line);
+    border-radius:5px;font-family:inherit;font-size:13px;margin-top:4px;
+    background:#fffdf8;color:var(--ink);outline:none}
+  .settings-panel input:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+  .settings-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+  .settings-actions button{padding:7px 14px;border-radius:5px;border:1px solid var(--line);
+    background:var(--paper);cursor:pointer;font-family:inherit;font-size:12.5px;color:var(--ink)}
+  .settings-actions button:hover{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+  .settings-actions .cfg-primary{background:var(--accent);color:#fbf6ec;border-color:var(--accent)}
+  .settings-actions .cfg-primary:hover{background:#a04420;border-color:#a04420;color:#fbf6ec}
+  .cfg-status{font-size:12px;margin-top:12px;min-height:18px;color:var(--ink-soft)}
+  .cfg-status.error{color:#8a3d4a}
+  .cfg-status.ok{color:#5a7a3d}
+  .settings-panel details{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+  .settings-panel details summary{cursor:pointer;font-size:13px;color:var(--accent);font-weight:600}
+  .settings-panel details ol{margin:10px 0 0 20px;font-size:12.5px;color:var(--ink);line-height:1.7}
+  .settings-panel details ol code{background:var(--accent-soft);padding:1px 4px;border-radius:3px;
+    font-size:11.5px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">LLM Knowledge Map · 一页纸 · 知识地图</div>
+  <h1>LLM 知识地图</h1>
+  <p class="lead">从"它本质上只做一件事——猜下一个词"出发,沿七条分支铺开整条知识链。点击任意节点,查看<strong>详解</strong>。</p>
+  <span class="hint">💡 点击节点看详情 · 右上角 <strong>✓</strong> 标已读 · 顶部搜索框过滤 · 按 <code>Esc</code> 关闭</span>
+  <div class="controls">
+    <input type="search" id="search" placeholder="🔍 搜索概念(中英文、关键词均可,如 attention / 幻觉 / 温度)..." />
+    <div class="progress">
+      <span id="progress-count">已读 0/0</span>
+      <button id="reset-progress" class="ghost-btn" title="清空所有已读标记">重置进度</button>
+    </div>
+  </div>
+  <div class="legend">
+    <span><span class="legend-dot" style="background:var(--c3)"></span>训练阶段</span>
+    <span><span class="legend-dot" style="background:var(--c1)"></span>输入处理</span>
+    <span><span class="legend-dot" style="background:var(--c2)"></span>核心架构</span>
+    <span><span class="legend-dot" style="background:var(--c4)"></span>推理生成</span>
+    <span><span class="legend-dot" style="background:var(--c5)"></span>能力边界</span>
+    <span><span class="legend-dot" style="background:var(--c6)"></span>进阶概念</span>
+    <span><span class="legend-dot" style="background:var(--c7)"></span>模型家族</span>
+  </div>
+</header>
+
+<div class="canvas-wrap">
+  <div id="canvas">
+    <svg id="svg" width="1400" height="2400" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+</div>
+
+<div class="drawer-mask" id="mask"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div>
+      <span class="tag" id="d-tag">分类</span>
+      <h2 id="d-title">标题</h2>
+      <div class="en" id="d-en"></div>
+      <div class="tagline" id="d-tagline"></div>
+    </div>
+    <button class="close-btn" id="d-close" aria-label="关闭">×</button>
+  </div>
+  <div class="drawer-body" id="d-body"></div>
+</aside>
+
+<!-- ========== 高亮 / 笔记 / 同步 新增 DOM ========== -->
+<div class="sync-bar" id="sync-bar">
+  <span class="sync-dot local" id="sync-dot" title="仅本地存储"></span>
+  <button class="sync-gear" id="sync-gear" title="云同步设置">⚙</button>
+</div>
+
+<div class="settings-mask" id="settings-mask">
+  <div class="settings-panel" id="settings-panel">
+    <h3>云同步设置 · GitHub Gist</h3>
+    <label>Personal Access Token
+      <input id="cfg-token" type="password" placeholder="github_pat_xxx 或 ghp_xxx" autocomplete="off" />
+    </label>
+    <label>Gist ID（留空则首次保存时自动创建私有 Gist）
+      <input id="cfg-gistid" type="text" placeholder="例如 a1b2c3d4e5..." autocomplete="off" />
+    </label>
+    <div class="settings-actions">
+      <button id="cfg-save" class="cfg-primary">保存并同步</button>
+      <button id="cfg-test">测试连接</button>
+      <button id="cfg-pull">立即拉取</button>
+      <button id="cfg-clear">清除配置</button>
+      <button id="cfg-close">关闭</button>
+    </div>
+    <p class="cfg-status" id="cfg-status"></p>
+    <details>
+      <summary>📖 怎样获取 Token 和 Gist？</summary>
+      <ol>
+        <li>打开 <code>https://github.com/settings/tokens?type=beta</code>（或 头像 → Settings → Developer settings → Personal access tokens → Fine-grained tokens）</li>
+        <li>点 <code>Generate new token</code></li>
+        <li>Token name：随便写，比如 <code>llm-map-notes</code></li>
+        <li>Expiration：推荐 1 year（到期需重新生成）</li>
+        <li>Repository access：选 <code>Public Repositories (read-only)</code> 即可（这一项不影响 Gist）</li>
+        <li>Permissions → <strong>Account permissions</strong>（不是 Repository permissions）→ 找到 <code>Gists</code> → 改为 <code>Read and write</code>，其他权限全部留 <code>No access</code></li>
+        <li>点 <code>Generate token</code>，复制出现的字符串（形如 <code>github_pat_xxx</code>）。<strong>⚠ 离开页面后再也看不到，必须立刻贴进本工具</strong></li>
+        <li>把 token 贴到上面 Token 框，Gist ID 留空，点「保存并同步」→ 自动创建一个私有 Gist，右上角圆点变绿即同步成功</li>
+        <li>换设备/换浏览器：同样打开本页面 → ⚙ → 贴同一个 token → Gist ID 去 <code>https://gist.github.com</code> 找名为「LLM 知识地图 · 高亮与笔记」的那个，URL 末尾就是 ID → 保存 → 自动拉取之前的数据</li>
+      </ol>
+    </details>
+  </div>
+</div>
+
+<div class="hl-toolbar" id="hl-toolbar">
+  <button class="hl-btn hl-btn-yellow" data-color="yellow">重点</button>
+  <button class="hl-btn hl-btn-red" data-color="red">疑问</button>
+</div>
+
+<div class="hl-popover" id="hl-popover">
+  <textarea id="hl-note-input" placeholder="给这段加条笔记…（可留空）"></textarea>
+  <div class="hl-pop-actions">
+    <button class="hl-remove" id="hl-remove">移除高亮</button>
+    <button id="hl-pop-close">完成</button>
+  </div>
+</div>
+
+<footer>
+  整理自一次完整的"LLM 概念盘点"对话 · 米色杂志清单风 · 可作为 LLM 科普视频内容骨架
+</footer>
+
+<script>
+/* ============================================================
+   1. 树结构数据
+   ============================================================ */
+const tree = {
+  root: { id:'llm', title:'LLM', short:'大语言模型 · 本质:猜下一个词' },
+  branches: [
+    { id:'b-train', c:3, title:'训练阶段', short:'先训练,才有这个模型',
+      children:[
+        { id:'params', title:'Parameters 参数', short:'几十亿~上万亿可调数字' },
+        { id:'pretrain', title:'Pre-training 预训练', short:'海量文本练猜词 → 基座' },
+        { id:'sft', title:'SFT 指令微调', short:'学着按指令回答' },
+        { id:'rlhf', title:'RLHF 人类反馈', short:'朝人类喜欢的方向优化' },
+      ]
+    },
+    { id:'b-input', c:1, title:'输入处理', short:'然后才能接收你的文字',
+      children:[
+        { id:'token', title:'Token 词元', short:'文本的最小单位' },
+        { id:'embedding', title:'Embedding 向量嵌入', short:'语义地图 · 国王-男人+女人=王后' },
+      ]
+    },
+    { id:'b-arch', c:2, title:'核心架构', short:'输入在内部怎么被处理',
+      children:[
+        { id:'transformer', title:'Transformer 架构', short:'摊开一次看全 + 并行' },
+        { id:'attention', title:'Self-Attention 自注意力', short:'词与词互相打听' },
+        { id:'ffn', title:'FFN 前馈网络', short:'各自消化思考' },
+        { id:'pos', title:'Positional Encoding', short:'给词贴顺序标签' },
+        { id:'stack', title:'多层堆叠', short:'几十轮"讨论 + 消化"' },
+      ]
+    },
+    { id:'b-infer', c:4, title:'推理生成', short:'怎么吐出下一个词',
+      children:[
+        { id:'inference', title:'Inference 推理', short:'实际生成答案的过程' },
+        { id:'distribution', title:'概率分布', short:'输出是概率表,不是一个词' },
+        { id:'sampling', title:'采样 vs 贪心', short:'掷骰子 还是 永远选最高' },
+        { id:'temperature', title:'Temperature 温度', short:'骰子有多任性' },
+        { id:'context', title:'Context Window 上下文', short:'一次能看到多少 token' },
+      ]
+    },
+    { id:'b-limit', c:5, title:'能力边界', short:'用时要知道的四个坑',
+      children:[
+        { id:'hallucination', title:'Hallucination 幻觉', short:'一本正经地编' },
+        { id:'cutoff', title:'Knowledge Cutoff 知识截止', short:'冻结的旧照片' },
+        { id:'emergent', title:'Emergent 涌现能力', short:'大到一定程度突然冒出' },
+        { id:'math', title:'不会真算数', short:'它在猜不在算' },
+      ]
+    },
+    { id:'b-adv', c:6, title:'进阶概念', short:'当代关键词',
+      children:[
+        { id:'moe', title:'MoE 混合专家', short:'大医院按需分诊' },
+        { id:'reasoning', title:'Reasoning 推理模型', short:'先打草稿再作答' },
+        { id:'multimodal', title:'Multimodal 多模态', short:'眼睛和耳朵' },
+        { id:'rag', title:'RAG 检索增强', short:'开卷考试' },
+      ]
+    },
+    { id:'b-family', c:7, title:'模型家族', short:'怎么挑、怎么用',
+      children:[
+        { id:'families', title:'9 大主流家族', short:'OpenAI/Claude/Gemini/...' },
+        { id:'dimensions', title:'7 个判断维度', short:'开源 / 规模 / 推理 / 多模态 / 上下文 / 价格 / 生态' },
+        { id:'scenarios', title:'场景 → 选谁', short:'实战选型指南' },
+      ]
+    },
+  ]
+};
+
+/* ============================================================
+   2. 自动布局
+   ============================================================ */
+const canvas = document.getElementById('canvas');
+const svg = document.getElementById('svg');
+const ROOT_X=70, BRANCH_X=420, LEAF_X=820;
+const ROW_H=66, GAP=22, PAD_TOP=60;
+
+let row = 0;
+tree.branches.forEach(b => {
+  const startRow = row;
+  b.children.forEach(c => {
+    c.y = PAD_TOP + row * ROW_H;
+    c.x = LEAF_X;
+    row++;
+  });
+  const endRow = row - 1;
+  b.y = PAD_TOP + ((startRow + endRow) / 2) * ROW_H;
+  b.x = BRANCH_X;
+  row += GAP / ROW_H;
+});
+const totalH = PAD_TOP + row * ROW_H + PAD_TOP;
+tree.root.y = totalH / 2 - 30;
+tree.root.x = ROOT_X;
+
+canvas.style.height = totalH + 'px';
+svg.setAttribute('height', totalH);
+svg.setAttribute('viewBox', `0 0 1400 ${totalH}`);
+
+/* ============================================================
+   3. 渲染节点 + 连接线
+   ============================================================ */
+/* progress state — must exist before makeNode runs */
+const STORAGE_KEY = 'llm-map-progress-v1';
+let progress = new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'));
+
+function makeNode(n, cls, c){
+  const div = document.createElement('div');
+  div.className = 'node ' + cls;
+  div.dataset.id = n.id;
+  if(c) div.dataset.c = c;
+  if(progress.has(n.id)) div.classList.add('read');
+  div.style.left = n.x + 'px';
+  div.style.top  = n.y + 'px';
+  div.innerHTML = `<div class="title">${n.title}</div><div class="short">${n.short}</div>`;
+  const check = document.createElement('div');
+  check.className = 'node-check';
+  check.title = '标记已读 / 取消已读';
+  check.addEventListener('click', e => {
+    e.stopPropagation();
+    markRead(n.id, !progress.has(n.id));
+  });
+  div.appendChild(check);
+  div.addEventListener('click', () => openDetail(n.id));
+  canvas.appendChild(div);
+  // measure after attach
+  requestAnimationFrame(()=>{
+    n.w = div.offsetWidth;
+    n.h = div.offsetHeight;
+    n.cx = n.x;            // left x
+    n.cy = n.y + n.h/2;    // vertical center
+    n.rx = n.x + n.w;      // right x
+  });
+}
+
+makeNode(tree.root, 'root');
+tree.branches.forEach(b => {
+  makeNode(b, 'branch', b.c);
+  b.children.forEach(c => makeNode(c, 'leaf', b.c));
+});
+
+/* draw curves after layout settled */
+function drawCurves(){
+  const COLORS = {1:'#b8512a',2:'#3d6480',3:'#5a7a3d',4:'#b8862a',5:'#8a3d4a',6:'#6a5a8a',7:'#c46a3d'};
+  let svgInner = '';
+  tree.branches.forEach(b => {
+    // root → branch
+    const r = tree.root;
+    const x1 = r.rx, y1 = r.cy;
+    const x2 = b.cx, y2 = b.cy;
+    const mx = (x1 + x2) / 2;
+    svgInner += `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" stroke="${COLORS[b.c]}" stroke-width="1.6" fill="none" opacity="0.55"/>`;
+    // branch → children
+    b.children.forEach(c => {
+      const cx1 = b.rx, cy1 = b.cy;
+      const cx2 = c.cx, cy2 = c.cy;
+      const cmx = (cx1 + cx2) / 2;
+      svgInner += `<path d="M${cx1},${cy1} C${cmx},${cy1} ${cmx},${cy2} ${cx2},${cy2}" stroke="${COLORS[b.c]}" stroke-width="1.3" fill="none" opacity="0.45"/>`;
+    });
+  });
+  svg.innerHTML = svgInner;
+}
+// wait two frames to ensure widths measured
+requestAnimationFrame(()=>requestAnimationFrame(drawCurves));
+
+/* ============================================================
+   4. 详情数据 (每个 id 对应一张详细解释卡)
+   ============================================================ */
+const DETAILS = {
+
+llm: {
+  tag:'根节点', en:'Large Language Model', tagline:'本质上只做一件事——根据前面的文字,猜下一个最可能的"词"。',
+  body:`
+  <h3>定义拆解</h3>
+  <p><strong>L</strong>arge(大):参数从几十亿(7B)到上万亿(1T+),训练数据规模接近"整个能爬到的公开互联网 + 大量书籍 + 代码 + 论文"——动辄十几万亿 token。<br>
+     <strong>L</strong>anguage(语言):最初只处理文本,如今主流模型已经把图像、音频甚至视频也"翻译"成同一种内部表示送进同一个模型,所以"L"的边界正在变模糊。<br>
+     <strong>M</strong>odel(模型):一个庞大的数学函数,输入一段文字,输出一张"下一个词概率表"。本质上是一堆矩阵乘法,所有"智能"都藏在那些参数里。</p>
+
+  <h3>它真正在做的事:一次只猜一个词</h3>
+  <p>给它"今天天气真",它在内部算出"好=60%、不错=20%、糟糕=8%……"这样一张表,挑出"好"接上。然后把"今天天气真好"作为新的输入,再算下一个词——可能是","或"啊"或"适合"。一个字接一个字往外吐,最后就成了一整段话。这种"前面接什么就预测什么"的方式叫<strong>自回归生成(autoregressive generation)</strong>。</p>
+  <p>形象点:像一个永远在玩"接龙"的人,只是他接的不是单词,而是 token——而且他基于人类有史以来积累的几乎所有文字总结出"接下来最像该说什么"。</p>
+
+  <h3>反直觉点:它没有数据库</h3>
+  <blockquote>它<strong>没有</strong>"知识数据库"在里面查。它学的是"语言的统计规律"。但为了把下一个词猜得足够准,它被迫在内部学会了语法、事实、推理、甚至代码逻辑——<strong>"理解"是"猜词"这个任务的副产品</strong>。</blockquote>
+  <p>打个比方:你让一个人每天读 100 万本书,做的唯一作业是"猜每句话的下一个词"。猜到第几千亿次,他不知不觉就把语法规则、历史事件、物理常识全装进了脑子里——不然他猜不准。LLM 就是这个被推到极致的"接龙学生"。</p>
+
+  <h3>常见误解</h3>
+  <ul>
+    <li><strong>"它在思考"</strong>——不,它在做矩阵乘法。看起来像思考,是因为人类的文字里本来就编码着思考过程,它在模仿。</li>
+    <li><strong>"它在查资料"</strong>——不,所有"事实"都被压缩进了参数里,记得糊就糊,会编(参见"幻觉"那一讲)。</li>
+    <li><strong>"它会算数"</strong>——不,它在猜算式后面长什么样,不是真的在算(参见"不会真算数")。</li>
+  </ul>
+
+  <h3>为什么这点很重要</h3>
+  <p>把"它只是在猜下一个词"这一句话记住,后面所有现象都能被解释:为什么会幻觉(它不在意真假,只在意像不像)、为什么温度能调创意(改的是采样这一步)、为什么能涌现能力(规模够大时,统计规律里"凑齐"了某种推理模式)、为什么 RAG 比微调更适合接知识(它的记忆是糊的,直接喂材料更靠谱)。整张知识地图,都是从这个根节点长出来的。</p>
+  `
+},
+
+/* ---------- 输入处理 ---------- */
+'b-input':{
+  tag:'分支', en:'Input Processing', tagline:'文字怎么变成模型能算的"数字"。',
+  body:`
+  <h3>为什么需要这一步</h3>
+  <p>模型内部全是矩阵和向量,只懂数字运算,根本不认识"猫""狗""hello"这些字符。所以你输入"今天天气真好"的瞬间,系统做的第一件事就是<strong>把文字翻译成一串数字</strong>——这一步在屏幕背后默默发生,但它质量的好坏,直接决定了后面 Transformer 能从中提取多少语义信息。</p>
+
+  <h3>两个子动作</h3>
+  <ol>
+    <li><strong>分词(Tokenization)</strong>:把连续的文本切成一段段叫 token 的小块。可能一个完整词、半个词、一个标点,中文常常一个字 1–2 个 token。</li>
+    <li><strong>嵌入(Embedding)</strong>:每个 token 查表换成一串数字向量,这串数字编码了它的"语义位置"。</li>
+  </ol>
+  <p>这两步做完,你的一句话就从"人类能读"的字符串,变成了一串"模型能算"的向量序列,可以送进 Transformer 了。</p>
+
+  <h3>为什么单独拎出来讲</h3>
+  <p>这两步看似只是"前处理",但里头藏着 LLM 计费(按 token)、上下文上限(按 token)、数学算错(token 切坏)、跨语言能力(分词器训练语料)等一系列实际问题的根源。理解它,你才能解释为什么"3.11 比 3.9 大吗"这种题会翻车——可能在 token 阶段就已经被切歪了。</p>`
+},
+
+token:{
+  tag:'输入处理', en:'Token', tagline:'模型眼里没有"字",只有 token。',
+  body:`
+  <h3>大白话</h3>
+  <p>模型不直接读"字符"或"单词",而是把文本切成一段段叫 <strong>token(词元)</strong> 的小单元。可能是一个完整词、半个词、一个标点,甚至是几个常一起出现的字母组合。</p>
+  <p>这套切法叫 <strong>BPE(Byte-Pair Encoding)</strong>:训练分词器时,统计大量文本里最常一起出现的字符组合,把它们合成一个 token——所以"the""ing"这种高频片段往往独占一个 token,而生僻词被拆得很碎。</p>
+
+  <h3>具体例子</h3>
+  <ul>
+    <li>"unbelievable" 在 GPT 的分词器里大致是 <code>un + believ + able</code> 三个 token。</li>
+    <li>"hello world" 是 2 个 token,而"hello"和"world"前面是否带空格也算不同的 token。</li>
+    <li>中文一个汉字常常 1–2 个 token,英文一个单词常常 1 个 token——所以同样表达一个意思,中文消耗的 token 数往往更多。</li>
+    <li>表情符号、生僻字、罕见专有名词,往往被拆成 3–5 个 token。</li>
+  </ul>
+
+  <h3>为什么重要</h3>
+  <ul>
+    <li><strong>计费按 token 算</strong>,不是按字数。同样问一个问题,中文用户的账单往往比英文用户高(因为中文 token/字符比更高)。</li>
+    <li><strong>上下文窗口按 token 算</strong>。说"128k 上下文",指的是 128000 个 token,中文大约能塞 6 万字左右,英文大约能塞 10 万词。</li>
+    <li><strong>数字处理出错的元凶之一</strong>。比如 4823 在某些分词器里被切成 <code>48 + 23</code> 或 <code>4 + 823</code>,模型连"哪一位是个位"都分不清,更别说进位、对齐——这就是为什么大数乘法会翻车。</li>
+    <li><strong>"3.11 比 3.9 大吗"翻车</strong>:3.11 可能被切成 <code>3 + . + 11</code>,3.9 被切成 <code>3 + . + 9</code>,模型看到"11">"9"就以为前者更大,完全忽略了小数点的语义。</li>
+  </ul>
+
+  <h3>常见误解</h3>
+  <blockquote>很多人以为"1 token = 1 个汉字"或"1 token = 1 个英文单词"。实际上 1 token 平均≈ 0.75 个英文单词,中文≈ 1.5 token/字。报价单上的"百万 token 5 美元",中英文用户的实际单价差很多。</blockquote>
+
+  <h3>实战提示</h3>
+  <p>需要精确算成本的场景,用厂商提供的 tokenizer 工具(OpenAI 的 tiktoken、Anthropic 的 token counter)预估;别用"字符数 ÷ 4"这种粗略估算,误差可能 30% 以上。</p>
+  `
+},
+
+embedding:{
+  tag:'输入处理', en:'Embedding · 向量嵌入', tagline:'每个 token 变成一串数字(向量),让"语义近 = 位置近"。',
+  body:`
+  <h3>为什么不能用编号(1, 2, 3)代替词?</h3>
+  <p>最朴素的想法:给词表里每个词配一个编号——猫=1、狗=2、桌子=3,扔进模型不就行了?<br>
+  问题在于:这些编号是随手分配的,数字里没装进任何"意义"。1 和 2 挨着,难道说明猫和狗"接近"?毫无道理——那 2 和 3 挨着,也可以推出狗和桌子接近,胡说。<strong>编号体系把所有词都"等距摆开",彼此没有任何关系信息</strong>,模型从这种输入里学不到语义。</p>
+
+  <h3>用"打分"的方式描述一个词</h3>
+  <p>换个思路:不用一个数字代表一个词,用<strong>一串数字</strong>(向量),每个数字代表一个"维度"上的打分。先想象只有两维:</p>
+  <ul>
+    <li>维度 A:王室程度(平民 0,王室 1)</li>
+    <li>维度 B:性别(男 0,女 1)</li>
+  </ul>
+  <pre>国王 = [1, 0]
+王后 = [1, 1]
+男人 = [0, 0]
+女人 = [0, 1]</pre>
+  <p>这下"国王"和"王后"在空间里就挨得很近(差一个性别维度),"国王"和"桌子"则隔得老远——<strong>"语义相似"被翻译成了"几何上靠近"</strong>。模型一下子就能利用这种关系。</p>
+
+  <h3>"国王 - 男人 + 女人 = 王后" 的算术</h3>
+  <pre>[1, 0] - [0, 0] + [0, 1] = [1, 1] = 王后 ✅</pre>
+  <p>关键领悟:这个向量空间里的<strong>"方向"是有含义的</strong>。从"男人→女人"这个方向代表"性别变化",在哪儿都成立(父亲→母亲、演员→女演员、king→queen)。同理,"巴黎-法国+德国≈柏林"——"国家→首都"是另一个稳定的方向。</p>
+  <p>这种"概念可以做加减"的现象是 2013 年 word2vec 论文最让人震撼的发现之一——它直接证明了:海量文本里隐藏的语义结构,是可以用几何方式捕捉出来的。</p>
+
+  <h3>真实情况:维度多得多,且没人手动定义</h3>
+  <ul>
+    <li>维度不是 2 个,而是 <strong>几百到几千个</strong>(GPT-3 用 12288 维,Llama 用 4096 维)。</li>
+    <li>没人手工定义"第 1 维管王室、第 2 维管性别"。这些值是模型在海量文本里<strong>自己训练出来的</strong>,每一维往往混合了说不清的概念——可能 0.3 份"动物性"+ 0.2 份"褒贬"+ 0.1 份"古今"……人类根本无法逐维解释。</li>
+    <li>模型怎么"自己学会":靠 <strong>分布假设(distributional hypothesis)</strong>——"一个词的意思,由它经常和哪些词一起出现决定"("近朱者赤")。"猫"和"狗"总在相似上下文里出现(被宠、毛茸茸、宠物、可爱) → 向量被推到相近位置;"猫"和"光合作用"几乎从不同框,向量就被推到很远。</li>
+  </ul>
+
+  <h3>静态 vs 动态 embedding</h3>
+  <p>早期的 word2vec、GloVe 给每个词一个固定向量(<strong>静态</strong>)——"苹果"永远是同一个向量,不管是"吃苹果"还是"苹果手机"。<br>
+  现代 LLM 用的是<strong>动态/上下文化</strong>的 embedding:初始查表得到的还是同一个向量,但经过几十层 Transformer 处理后,"吃苹果"里的苹果和"苹果手机"里的苹果会被拉到完全不同的最终位置。这就是"多层堆叠"那一讲提到的"上下文相关 embedding"。</p>
+
+  <h3>它的下游用途(不只输入)</h3>
+  <p>Embedding 的应用早就超出"模型输入"了:</p>
+  <ul>
+    <li><strong>语义搜索</strong>:把你的问题和文档库里每段都转成向量,找距离最近的——这就是 RAG 的检索基础。</li>
+    <li><strong>分类、聚类、推荐</strong>:把任何文本变成向量后,机器学习的整套工具就都能用了。</li>
+  </ul>
+
+  <blockquote>Embedding 是模型理解语义的入口和地基。处理你输入时,<strong>第一件事</strong>就是把每个 token 查表换成它的向量,然后这串向量才送进 Transformer。可以说,把"文字"翻译成"向量"的那一刻,LLM 的全部魔法才开始。</blockquote>
+  `
+},
+
+/* ---------- 核心架构 ---------- */
+'b-arch':{
+  tag:'分支', en:'Core Architecture', tagline:'现代 LLM 共同的地基:Transformer。',
+  body:`
+  <h3>历史定位</h3>
+  <p>2017 年 Google 那篇论文《Attention Is All You Need》带来的核心发明。在它之前的 LSTM、RNN 时代,做不出真正的"大"模型——既慢又健忘。Transformer 出现后,大模型的竞赛才真正开始,今天所有主流大模型(GPT、Claude、Gemini、Llama、DeepSeek、Qwen……)骨架都是 Transformer 的变体。可以说<strong>过去 8 年所有让人惊艳的 AI 进展,都建立在这一个架构上</strong>。</p>
+
+  <h3>四个核心零件</h3>
+  <ol>
+    <li><strong>Self-Attention(自注意力)</strong>:词与词之间横向交流,把上下文信息汇集到每个词身上。</li>
+    <li><strong>FFN(前馈网络)</strong>:每个词独自消化吸收,把刚拿到的信息加工成更有用的表示。</li>
+    <li><strong>Positional Encoding(位置编码)</strong>:既然所有词同时处理,就得额外告诉模型"谁排第几"。</li>
+    <li><strong>多层堆叠</strong>:把"Attention + FFN"重复几十上百次,让理解逐层加深。</li>
+  </ol>
+
+  <h3>一句话总览</h3>
+  <p>把一串向量摊在桌上 → 让它们互相打听一遍(Attention)→ 各自消化(FFN)→ 重复几十次。整个过程<strong>完全并行</strong>,这就是"L"(Large)能成立的根本原因——上万张 GPU 同时算才有意义。</p>
+  <p>接下来四节会分别拆开讲每个零件。看完你就能在脑子里画出一张完整的 Transformer 数据流图。</p>`
+},
+
+transformer:{
+  tag:'核心架构', en:'Transformer', tagline:'摊开一次看全 + 并行处理,这是"Large"成为可能的根本原因。',
+  body:`
+  <h3>它取代了什么:RNN 的两个死穴</h3>
+  <p>Transformer 之前主流叫 RNN(循环神经网络)及它的变种 LSTM——<strong>一个词一个词顺着读</strong>,像人读书。这种方式有两个致命问题:</p>
+  <ol>
+    <li><strong>慢</strong>:必须读完第 5 个词,才能开始读第 6 个,因为第 6 步要用到第 5 步的"记忆状态"。这种串行依赖让 GPU 几乎用不起来——上万张卡只能干等前一张算完——训练超大模型在物理上不可能。</li>
+    <li><strong>健忘</strong>:每读一个新词,旧记忆就被改写一点,句子一长就忘了开头。读到"那只动物没过马路,因为天气太冷、路面结冰、风又特别大,所以它……"时,模型早已记不清"它"指的是动物了。</li>
+  </ol>
+
+  <h3>Transformer 的核心思想:摊开一次看全</h3>
+  <p>它不顺着读,而是<strong>把整句话所有词同时摊在桌上</strong>,然后让每个词去和其他所有词"打听"一遍——"诶,我跟你有关系吗?多大关系?"。所有词<strong>同时</strong>做这件事,不是排队。</p>
+  <p>这一招同时砍掉了 RNN 的两个死穴:</p>
+  <ul>
+    <li><strong>并行了</strong>——所有词一起算,GPU 终于能火力全开。</li>
+    <li><strong>不健忘了</strong>——任意两个词之间都是"直连",哪怕隔 1 万个 token,"它"和"动物"也能直接对上,中间不丢失。</li>
+  </ul>
+
+  <h3>一层 Transformer 里的两个零件</h3>
+  <ol>
+    <li><strong>Self-Attention</strong>:横向交流——每个词从其他词收集相关信息("我应该多关注谁?")。</li>
+    <li><strong>FFN(前馈网络)</strong>:各自消化——把刚吸收的信息单独深加工,提炼出更有用的表示。</li>
+  </ol>
+  <p>像一轮<strong>小组讨论</strong>:先全组发言、互相听一遍("听听别人怎么想"),再各自回座位整理消化("我自己得出什么结论")。这两步配合得天衣无缝——Attention 负责"信息流动",FFN 负责"信息加工"。</p>
+  <p>(还有两个不起眼但关键的"稳定器":<strong>Residual 残差连接</strong>负责让原始信息一路保留下去,防止深层里被改没了;<strong>LayerNorm</strong>负责把数值缩放到稳定范围,防止深层训练发散。它们俩是 Transformer 能堆几十上百层不崩的隐形功臣。)</p>
+
+  <h3>为什么是地基</h3>
+  <table>
+    <tr><th></th><th>RNN(老办法)</th><th>Transformer</th></tr>
+    <tr><td>处理方式</td><td>一个一个顺序读</td><td>全部摊开,同时算</td></tr>
+    <tr><td>速度</td><td>慢,没法并行</td><td>快,大规模并行 → 才撑起"Large"</td></tr>
+    <tr><td>长距离关系</td><td>容易忘开头</td><td>Attention 直接连,任意两词都"直拨"</td></tr>
+    <tr><td>训练规模上限</td><td>百万参数级</td><td>万亿参数级</td></tr>
+  </table>
+
+  <h3>常见误解</h3>
+  <blockquote>"Transformer 只是 LLM 用的。"——不对。今天 ChatGPT 用它处理文本,Sora/Gen-3 用它生成视频,AlphaFold 用它预测蛋白质结构,推荐系统、机器人控制也大量在用。<strong>Transformer 早已超出 NLP,成了"序列建模的通用工具"</strong>。</blockquote>
+
+  <h3>顺嘴一提</h3>
+  <p>GPT 里的 "T" 就是 Transformer(Generative Pre-trained <strong>Transformer</strong>)。BERT、T5、Llama、Claude、Gemini、DeepSeek……它们彼此差异主要在训练方式、规模、对齐方法,<strong>骨架完全一致</strong>——都是 Transformer。</p>
+  `
+},
+
+attention:{
+  tag:'核心架构', en:'Self-Attention', tagline:'每个词向全句"打听一遍",按相关程度吸收信息。',
+  body:`
+  <h3>它解决的具体问题:指代消歧</h3>
+  <blockquote>"那只<strong>动物</strong>没过马路,因为<strong>它</strong>太累了。"</blockquote>
+  <p>这句话里"它"指什么?动物?还是马路?——人类瞬间知道是动物,但对没有上下文理解的机器来说,这是个真问题。</p>
+  <p>Self-Attention 是这么处理的:轮到"它"被处理时,"它"会向句子里所有其他词都打听一遍 → 发现自己和"动物"的语义高度相关(权重高,比如 0.7),和"马路"关系一般(权重 0.1),和其他词更弱。于是"它"按权重把"动物"的含义大量吸进自己的向量里——模型这才知道<strong>"它"=动物,不是马路</strong>。</p>
+  <p>同一句话换成"那只动物没过马路,因为<strong>它</strong>太宽了"——这次"它"通过 Attention 更多吸收"马路"的含义(因为"宽"和马路相关而非动物)。注意整个机制是<strong>纯统计学习出来的</strong>,没有人教它"宽"该匹配"马路"。</p>
+
+  <h3>核心机制:Q、K、V 三个角色</h3>
+  <p>每个词同时扮演三个角色:</p>
+  <ul>
+    <li><strong>Query(查询)</strong>:"我在找什么样的信息?"——比如"它"在找:谁是我指代的对象?</li>
+    <li><strong>Key(钥匙)</strong>:"我能提供什么样的信息?"——比如"动物"广播:我是一个名词、是个生命体、可以被代词指代。</li>
+    <li><strong>Value(值)</strong>:"我实际携带的信息内容"——比如"动物"的完整语义向量。</li>
+  </ul>
+  <p>计算流程,用图书馆类比就一目了然:</p>
+  <ol>
+    <li>每个词的 Query 去和其他所有词的 Key 配对,算"相似度"——像拿着书目卡片去对每本书的标签。</li>
+    <li>这些相似度经过 softmax 变成一组权重(加起来=1)——像决定"这次借阅,各本书各借多少"。</li>
+    <li>按权重把所有词的 Value 加权求和——把这些书的内容按比例混合,装进自己的新向量。</li>
+  </ol>
+  <p>关键的妙处:Q、K、V 都是从同一个词的 embedding 通过三个不同的投影矩阵算出来的,这三个矩阵是<strong>训练出来的</strong>——模型自己学会"该问什么、该广播什么、该拿出什么"。</p>
+
+  <h3>"Multi-Head" 多头注意力</h3>
+  <p>只做一套 Q-K-V 不够——一个词和别的词的关系有很多种:语法上的(主谓宾)、语义上的(指代)、情感上的(修饰褒贬)。所以 Transformer 同时做<strong>好几套(常见 8、16、32 套)</strong>这种"打听",每套叫一个 <strong>head(注意力头)</strong>,每个 head 关注一种关系,最后把它们的结果拼起来。</p>
+  <p>就像同一场会议派多个记录员——一个专门记谁说话语气重,一个专门记谁同意谁、谁反对谁,一个专门记话题转移……最后把多个角度的笔记合并成一份完整记录。这就是 multi-head 的价值。</p>
+  <p>研究者后来发现,不同 head 真的会自发学到不同模式:有的 head 专门关注"前一个词",有的专门关注"同一句子里的主语",有的关注"标点之间的边界"——非常有趣。</p>
+
+  <h3>常见误解</h3>
+  <blockquote>很多人以为"Attention 就是给重要的词加亮"。其实更精确地说:Attention 是<strong>"按相关程度把信息搬过去"</strong>——它修改的是每个词的向量内容,不是简单地"标记重要性"。每过一层 Attention,每个词的向量都变得更"懂上下文"。</blockquote>
+
+  <h3>为什么它是"Attention Is All You Need"</h3>
+  <p>论文标题这么取是有道理的——这一个机制一次性解决了 RNN 两个核心问题:</p>
+  <ul>
+    <li><strong>能并行</strong>:所有词同时算自己的 Q-K-V,GPU 终于能火力全开。</li>
+    <li><strong>能看远距离</strong>:任意两个词之间是"直连",哪怕隔几千个 token,Attention 也是一步到位,没有 RNN 那种"信息一层层传必然衰减"的问题。</li>
+  </ul>
+  <p>所以"Attention 就够了"——不需要 RNN 的循环、不需要 CNN 的局部窗口,光靠 Attention + FFN 就能堆出极其强大的语言模型。这是过去 8 年 AI 大跃进的起点。</p>
+  `
+},
+
+ffn:{
+  tag:'核心架构', en:'Feed-Forward Network', tagline:'Attention 之后,每个词单独"消化思考"的一步。',
+  body:`
+  <h3>定位</h3>
+  <p>每层 Transformer 里有两个核心零件,这是其中之一。分工很清楚:<strong>Attention 负责横向交流(信息流动),FFN 负责各自消化(信息加工)</strong>。两者像左右手,缺一不可。</p>
+
+  <h3>它在做什么</h3>
+  <p>Attention 完成之后,每个词的向量里都多了"从邻居那儿吸收来的信息"——比如"它"这个词现在融入了"动物"的语义。但融进来的这堆混合信息还是"原料",得有人深加工。FFN 就把每个词的这堆混合向量单独处理一遍,提炼出新的、更有用的表示。</p>
+  <p>类比:Attention 像"开会听别人发言",FFN 像"散会后自己回办公室,把听来的内容整理成结论"。听归听,想归想——必须独立想一遍,才能真正把信息变成自己的洞察。</p>
+
+  <h3>结构(简单但不小)</h3>
+  <p>就是一个两层的小神经网络:</p>
+  <ol>
+    <li>把每个词的向量<strong>扩展到更高维度</strong>(常见做法:扩到 4 倍宽,比如 4096 维 → 16384 维)</li>
+    <li>经过<strong>非线性激活函数</strong>(GeLU、SwiGLU 等)——这一步是关键,让模型能学习非线性关系</li>
+    <li><strong>压回原维度</strong>(16384 维 → 4096 维)</li>
+  </ol>
+  <p>"先扩张再压缩"听起来奇怪,但这是关键:扩张到高维空间相当于给信息"摊开"的余地,在更高维度里做加工,再压回来,信息密度更高。</p>
+
+  <h3>容易被低估的事实:FFN 占了模型大部分参数</h3>
+  <p>很多人以为 LLM 主要的"智能"在 Attention 里,其实<strong>FFN 才占了整个 Transformer 大约 2/3 的参数量</strong>。Attention 比较"瘦",FFN 比较"胖"。</p>
+
+  <h3>意义:知识其实存在 FFN 里</h3>
+  <ul>
+    <li>研究者(用"探针"技术)发现,模型的<strong>大部分"事实知识"实际存在 FFN 里</strong>——"巴黎是法国首都"这种事实,是 FFN 的某些权重在记。Attention 主要管"怎么把信息搬运到一起、怎么聚焦相关词",真正的"存储和加工"在 FFN。</li>
+    <li>有些前沿研究甚至把 FFN 看成<strong>"键-值记忆库"</strong>——Attention 把上下文做成 query,FFN 把它当 key 去查,激活相应 value,把对应的知识"调出来"。</li>
+    <li><strong>MoE(混合专家)就是把 FFN 换成"一排专家"</strong>——既然 FFN 是大头,在这里做手脚最划算。每个 token 只激活一两个专家 FFN,其他 FFN 不算,算力立刻省下来,但总知识量保留。这是 MoE 能省算力的根源,后面那一节会展开。</li>
+  </ul>
+  `
+},
+
+pos:{
+  tag:'核心架构', en:'Positional Encoding', tagline:'既然一次摊开所有词,就得额外告诉模型"谁排第几"。',
+  body:`
+  <h3>为什么需要它:Transformer 的天生缺陷</h3>
+  <p>Transformer "摊开一次看全",所有词同时算 Attention——这带来了并行性,但也带来了一个严重副作用:<strong>它本来分不清"我打你"和"你打我"</strong>。</p>
+  <p>为什么?因为 Attention 算 Q 和 K 的相似度时,只看每个词的内容向量,不知道它们的先后顺序。把"我"和"打"和"你"这三个词同时摊在桌上,不管按什么顺序排,Attention 算出的结果完全一样——这显然是不行的,人类语言的顺序里藏着大量信息。</p>
+  <p>对比一下:RNN 没这个问题,因为它是顺着读的,顺序天然就被记录下来了。Transformer 为了换并行性,失去了天然的顺序感,得想办法补回来。</p>
+
+  <h3>解决办法:给每个词贴"位置标签"</h3>
+  <p>给每个词额外注入一个<strong>"位置信息"</strong>——相当于给每个词贴一张"你排第几"的标签,加到它的 embedding 上。这样:</p>
+  <ul>
+    <li>"我"(位置 1) + "打"(位置 2) + "你"(位置 3) → 一种向量序列</li>
+    <li>"你"(位置 1) + "打"(位置 2) + "我"(位置 3) → 另一种向量序列</li>
+  </ul>
+  <p>同样的词,因为位置标签不同,Attention 现在算出来的结果就不同——既保留了"全部并行"的好处,又把语序信息找回来了。</p>
+
+  <h3>三种主流做法</h3>
+  <table>
+    <tr><th>方法</th><th>原理</th><th>用在哪</th></tr>
+    <tr><td><strong>Sinusoidal</strong><br>正弦位置编码</td><td>用一组不同频率的 sin/cos 函数生成位置向量,直接加到 embedding 上。优点:不需要训练,可以推广到训练时没见过的长度</td><td>原版 Transformer、早期 BERT</td></tr>
+    <tr><td><strong>RoPE</strong><br>旋转位置编码</td><td>不加到 embedding 上,而是在 Attention 计算 Q-K 相似度时,把它们按位置"旋转"——位置越远,旋转的角度差越大,相似度自然衰减。数学上很优雅</td><td>当今主流:GPT、Llama、Qwen、DeepSeek 全在用</td></tr>
+    <tr><td><strong>ALiBi</strong></td><td>不加位置向量,直接让 Attention 自带"距离惩罚"——离得越远,关注度自然越低</td><td>BLOOM、MPT 等</td></tr>
+  </table>
+
+  <h3>为什么这一步关系到上下文长度</h3>
+  <blockquote>位置编码的设计,是 LLM 上下文窗口能从最初的 1024 扩到现在的 100 万、甚至号称 1000 万的<strong>关键创新之一</strong>。RoPE 之所以成为主流,很大程度是因为它通过"插值"或"NTK 缩放"等技巧,能让模型用 8k 训练、推理时却能跑 128k——这在 sin/cos 时代是做不到的。</blockquote>
+
+  <h3>实战提示</h3>
+  <p>你看到"某模型支持 200k 上下文"时,背后通常有一段位置编码的扩展工程——不是改改超参就行,而是要对 RoPE 做位置插值、重新微调,否则模型在长上下文里会"找不着北"。这也是为什么"长上下文"长期是各家拼科研的方向之一。</p>
+  `
+},
+
+stack:{
+  tag:'核心架构', en:'Layer Stacking', tagline:'把"Attention + FFN"重复几十上百层,让理解逐层加深。',
+  body:`
+  <h3>为什么要叠</h3>
+  <p>一层 Transformer 只是"讨论一轮"——每个词跟其他词打听了一遍,各自消化了一次。但语言的理解远不是一轮"小组讨论"就能完成的:第一轮可能只能搞清楚词性,第二轮才能搞清楚短语结构,第三轮才能消歧"它"指代谁,第十轮才能识别出整句话的意图……</p>
+  <p>所以真实 LLM 会把这样的层<strong>堆叠几十上百层</strong>,每一层都在前一层结果的基础上继续加深理解。常见规模:</p>
+  <ul>
+    <li>GPT-2:12–48 层</li>
+    <li>GPT-3:<strong>96 层</strong></li>
+    <li>Llama 3 70B:80 层</li>
+    <li>GPT-4 估计更深(具体数字未公开)</li>
+  </ul>
+
+  <h3>层与层的差异(粗略直觉)</h3>
+  <p>研究者用"探针"技术分析过模型每层在干什么,大致规律是:</p>
+  <ul>
+    <li><strong>最下面几层(1-10 层)</strong>:偏处理表层语法——词性、字符级模式、邻近词搭配。比如识别出"the"后面通常跟名词。</li>
+    <li><strong>中间层(10-50 层)</strong>:开始处理短语结构、依存关系、近距离指代。比如"那只动物"是一个名词短语。</li>
+    <li><strong>最上面几层(50-96 层)</strong>:处理高层语义、跨句子的逻辑、长距离指代、情感、意图。比如理解整段对话的隐含意思。</li>
+  </ul>
+  <p>(实际没这么整齐,有些能力分散在多层、有些层会"兼职"做多件事,但"越深越抽象"的总趋势是对的——类似 CNN 在图像里"浅层识别边缘、深层识别物体"的规律。)</p>
+
+  <h3>关键结果:上下文相关的 embedding</h3>
+  <p>经过几十轮"讨论 + 消化",每个词的向量就从"孤立的字典含义"变成了"<strong>在这句话这个语境下的精确含义</strong>"。</p>
+  <p>这也是为什么同一个词("苹果")在不同句子里会有不同的最终向量:</p>
+  <ul>
+    <li>"我喜欢吃苹果"里的"苹果"——最终向量靠近 水果、甜、维生素 那一片</li>
+    <li>"苹果发布了新手机"里的"苹果"——最终向量靠近 公司、科技、品牌 那一片</li>
+  </ul>
+  <p>初始 embedding 完全一样(都是查字典得到的同一个向量),但经过 96 层 Transformer 后,被各自的上下文"拉"到了完全不同的位置。这就是<strong>"上下文相关的 embedding(contextual embedding)"</strong>——它是 Transformer 比传统 word2vec 强大得多的根本原因。</p>
+
+  <h3>层数 vs 宽度的权衡</h3>
+  <blockquote>给定一样的总参数预算,该堆更多层(深)还是把每层做得更宽?业界普遍倾向"<strong>又深又适度宽</strong>":太浅会限制抽象能力,太深则训练困难、推理慢。Scaling Law 研究给出过参考比例,但每家厂商都有自己的"风味"。</blockquote>
+
+  <h3>代价</h3>
+  <p>层数越多,推理时延越长——因为每个 token 必须从第 1 层一路串行算到最后一层,中间无法跳过。所以"更深更聪明"和"更快更便宜"始终是个权衡:小模型层少跑得快,旗舰模型层多但慢。</p>
+  `
+},
+
+/* ---------- 训练阶段 ---------- */
+'b-train':{
+  tag:'分支', en:'Training Pipeline', tagline:'从"基座模型"到"听话助手",三步走。',
+  body:`
+  <h3>一个比喻先理解全貌</h3>
+  <p>一个能用的 LLM 不是一次训练出来的,而是像培养一个员工一样,经过<strong>三个阶段</strong>:</p>
+  <ol>
+    <li><strong>预训练(Pre-training)</strong>=让他读完图书馆里所有书,掌握语言和世界知识(<strong>海量文本练猜词 → 得到"基座模型"</strong>)</li>
+    <li><strong>指令微调(SFT)</strong>=教他"客户问什么,该怎么标准化回答"(<strong>学会按指令回答</strong>)</li>
+    <li><strong>RLHF / RLAIF</strong>=主管反复点评他的答复,把他训练成客户最喜欢的客服(<strong>朝人类更喜欢的方向优化</strong>)</li>
+  </ol>
+
+  <h3>每一步要多少钱、决定什么</h3>
+  <ul>
+    <li><strong>第一步最烧钱</strong>:几千万到上亿美元,几个月时间,上万张 H100 GPU。决定模型的"知识天花板"和"基本智商"。</li>
+    <li><strong>第二步相对便宜</strong>:几万到几十万美元,几天到几周。决定模型"会不会按你的要求回答"。</li>
+    <li><strong>第三步成本中等</strong>:几十万到几百万。决定模型"够不够礼貌、安全、有用"——这一步是 ChatGPT 比原始 GPT-3 惊艳的关键。</li>
+  </ul>
+
+  <h3>常见误解</h3>
+  <blockquote>"模型每次回答完都在学习"——错。一旦三步训练结束、模型部署上线,它的参数就<strong>完全冻结</strong>。你跟它聊一万次,它的参数一个都不动。"它好像越来越懂我"是因为它能记住<strong>本次对话</strong>(全在上下文里),退出对话后什么也留不下。</blockquote>
+
+  <h3>趋势</h3>
+  <p>这套"预训练 + SFT + RLHF"流水线现在面临两个新方向的冲击:<strong>RLAIF</strong>(用 AI 替代人类做反馈,Anthropic 的 Constitutional AI 是代表)、以及<strong>推理时强化学习</strong>(让模型在推理时也"思考"并自我奖励,OpenAI o 系列和 DeepSeek-R1 走的就是这条路)。但三阶段框架仍然是当下绝大多数模型的基础。</p>`
+},
+
+params:{
+  tag:'训练阶段', en:'Parameters', tagline:'模型内部那几十亿/上万亿个可调的数字。',
+  body:`
+  <h3>什么是参数</h3>
+  <p>模型内部所有 Attention、FFN 里那些"权重"——一个个可调的数字。每一个参数都是一个浮点数,通常用 16 位或 32 位精度存。<strong>训练就是在不断微调这些数字</strong>,让模型在"猜下一个词"任务上的预测越来越准。</p>
+  <p>形象一点:可以把模型想成一台有几百亿个旋钮的巨型机器,每个旋钮对应一个参数。训练就是反复试错,把每个旋钮调到"对所有输入都能给出最好预测"的那个值。预训练干的事 99% 就是<strong>调旋钮</strong>。</p>
+
+  <h3>常见单位</h3>
+  <ul>
+    <li><code>1.5B</code> = 15 亿(手机能跑的小模型档)</li>
+    <li><code>7B</code> = 70 亿参数(B = billion,开源入门档,笔记本能跑)</li>
+    <li><code>70B</code> = 700 亿(开源中高档,需要 4 张 A100 / 1 张 H100)</li>
+    <li><code>405B</code> = 4050 亿(Llama 3.1 旗舰,推理需多机)</li>
+    <li><code>671B</code> = 6710 亿(DeepSeek-V3 总参数,MoE)</li>
+    <li>GPT-4 估计 1.8T+(MoE,具体未公开)</li>
+  </ul>
+
+  <h3>参数量大致需要多少显存</h3>
+  <p>一条粗略口诀:推理时<strong>参数量 × 2 ≈ 所需显存(GB)</strong>(因为 fp16 每参数 2 字节)。所以:</p>
+  <ul>
+    <li>7B 模型 → 约 14 GB,RTX 4090(24GB)能跑</li>
+    <li>70B 模型 → 约 140 GB,需要 2 张 H100 或更多</li>
+    <li>405B → 约 810 GB,得 10+ 张 H100</li>
+  </ul>
+  <p>(如果做量化压到 4 位,显存能砍到 1/4,7B 用 4-bit 量化只要 4GB,Mac 都能跑——这是开源生态繁荣的关键。)</p>
+
+  <h3>参数量 ≠ 智能</h3>
+  <p>参数量是<strong>能力上限的粗略代理</strong>,但绝不是"越大越强":</p>
+  <ul>
+    <li><strong>数据质量更关键</strong>。Phi 系列只用 3B 参数 + 精心筛选的"教科书级"数据,能在很多基准上打平 7B–13B 模型。</li>
+    <li><strong>训练算力(FLOPs)和数据量配比</strong>。Chinchilla 论文证明:很多旧模型其实"参数太多、数据太少",同样算力把模型缩小、数据加多,效果反而更好。</li>
+    <li><strong>对齐方法</strong>(SFT + RLHF)直接决定"好不好用",同一个底座经过不同对齐,体验天差地别。</li>
+    <li><strong>MoE 模型</strong>:671B 总参数 / 激活 37B → "总参数大,实际算力小"——别拿总参数和稠密模型直接比。</li>
+    <li><strong>新一代结构 vs 老一代</strong>:同样 70B,Llama 3 比 Llama 2 强很多——结构、数据、训练方法都进步了。</li>
+  </ul>
+
+  <h3>实战提示</h3>
+  <blockquote>看到一个新模型时,别只看"多少 B",至少要同时看四件事:<strong>总参数 / 激活参数(是否 MoE) / 训练 token 量 / 用了什么对齐方法</strong>。光报一个 B 数对评估能力没什么用。</blockquote>
+  `
+},
+
+pretrain:{
+  tag:'训练阶段', en:'Pre-training', tagline:'第一阶段:拿海量文本,反复练"猜下一个词"。',
+  body:`
+  <h3>它在做什么</h3>
+  <p>把整个互联网级别的文本(网页、维基、书籍、论文、代码、对话——总量几万亿到几十万亿 token)喂给一个<strong>参数完全随机的空白 Transformer</strong>。让它做一件极其单调的事——给定前几个词,预测下一个词。猜错了,就反向传播调整参数;猜对了,加强那条路径。这样千万亿次之后,语言规律、事实知识、推理模式都被压进了参数里。</p>
+  <p>这一步用的是<strong>自监督学习(self-supervised learning)</strong>——不需要人工标注,因为"下一个词"本身就在文本里,把它遮住让模型猜就行。这正是为什么预训练能用上整个互联网级别的数据,而不是几万条人工标注的样本。</p>
+
+  <h3>数据从哪儿来 / 怎么准备</h3>
+  <ul>
+    <li><strong>Common Crawl</strong>:全网爬虫数据(几十 TB),需要大量去重、过滤垃圾、过滤低质量、过滤有害内容</li>
+    <li><strong>Wikipedia、书籍、学术论文(arXiv)、代码(GitHub)、Reddit、Stack Overflow</strong></li>
+    <li><strong>高质量数据合成</strong>:近年新趋势,用强模型生成"教科书级"训练数据</li>
+  </ul>
+  <p>业内有句话:<strong>"data is the new oil"</strong>——同样的算力,数据质量决定上限。Anthropic、OpenAI 都把数据配方当成核心商业机密。</p>
+
+  <h3>成本</h3>
+  <p>这一步<strong>是整个 LLM 工程里最烧钱的环节</strong>——一次预训练:</p>
+  <ul>
+    <li>动辄几千万到上亿美元算力费(GPT-4 估计 1 亿美元起,Llama 3.1 405B 训练成本约 1 亿美元)</li>
+    <li>上万张 H100 GPU 连续跑几个月不间断</li>
+    <li>消耗的电力相当于一个小城市数月的用电</li>
+    <li>失败重训的成本是天文数字——所以中途必须不断监控、调超参</li>
+  </ul>
+
+  <h3>产出:基座模型(Base Model)</h3>
+  <p>预训练完得到的叫<strong>基座模型 / Foundation Model</strong>——它能接话、能续写、能展示惊人的知识量,但<strong>不会"听指令当助手"</strong>。它的输出风格完全取决于你给的开头像什么:</p>
+  <ul>
+    <li>你给它"你好",它可能续成"你好,世界。Hello, World. 这是每个程序员写下的第一行代码……"(因为训练数据里"你好"经常出现在这种语境)</li>
+    <li>你给它"问:法国的首都是?答:",它会续上"巴黎。问:德国的首都是?答:柏林……"(因为它见过很多 Q&A 数据)</li>
+    <li>你给它"在很久很久以前",它会续上一个童话</li>
+  </ul>
+  <p>它就是个"超级强大的文本续写引擎",但还没被<strong>调教成助手</strong>。你不能直接问它"帮我写封信",它可能回的是"……是一件非常重要的事情,本文将探讨……"——它在续写,不在帮你。</p>
+
+  <h3>下一步</h3>
+  <p>要把这个"会接话的怪兽"变成 ChatGPT/Claude 那样能听指令的助手,还需要后面的 SFT(教它按指令回答)+ RLHF(教它答得让人喜欢)。基座模型是地基,SFT/RLHF 是装修——没地基装不了,但只看地基也住不了人。</p>
+
+  <h3>冷知识</h3>
+  <blockquote>很多开源项目(Llama Base、Qwen Base)都会单独发布"未对齐的基座模型",研究者和企业能拿去做自己的 SFT/RLHF——基座是稀缺资源,谁能从零训出一个有竞争力的基座,谁就能定义自己的模型生态。这也是为什么各国都在卷"自主可控的基座模型"。</blockquote>
+  `
+},
+
+sft:{
+  tag:'训练阶段', en:'Supervised Fine-Tuning · 指令微调', tagline:'拿"问题-好答案"的范例,教它"听指令"。',
+  body:`
+  <h3>为什么需要这一步</h3>
+  <p>基座模型"会接话",但不会"按你的指令做事"。这是因为预训练阶段它学到的是"互联网上文本通常怎么续",而不是"用户问问题、助手该怎么答"。所以你问"用三句话总结这篇文章",它可能不总结,反而继续写下去——因为在它见过的数据里,这种句子后面常常接的就是更多内容,而不是总结。</p>
+  <p>形象比喻:基座模型像一个读了一万本书的博学青年,但你叫他"帮我倒杯水",他可能会回你一段关于水的化学性质的论述——他知识渊博,但<strong>没人教他"被叫做事时要照办"</strong>。SFT 就是这一步教育。</p>
+
+  <h3>怎么做</h3>
+  <p>准备一批高质量的<strong>"指令-理想答案"对</strong>(典型规模:几万到几十万条,精品的话甚至 1 万条就够),让模型在这些数据上继续训练。这次<strong>目标变了</strong>——不再是"猜任意下一个词",而是"在看到指令后,生成符合期望的回答"。</p>
+  <p>具体示例:</p>
+  <ul>
+    <li>指令:"翻译下面这句话到英文:今天天气真好。" → 理想答案:"The weather is really nice today."</li>
+    <li>指令:"用三点总结量子力学。" → 理想答案:"1. 能量不连续 2. 波粒二象性 3. 不确定性原理"</li>
+    <li>指令:"写一首关于秋天的五言绝句。" → 理想答案:"梧叶落金台 / 秋风过石阶 / 寒蝉鸣未尽 / 月色满空斋"</li>
+  </ul>
+  <p>训练时,模型看到指令部分,然后被要求生成与"理想答案"尽可能一致的内容——预测错了就调整参数。几千次到几万次迭代后,它就形成了"看到指令 → 按这种格式作答"的反射。</p>
+
+  <h3>数据从哪儿来</h3>
+  <ul>
+    <li><strong>人工标注</strong>:招专业标注员写"标准答案"——质量高但贵</li>
+    <li><strong>开源指令数据集</strong>:Alpaca、Dolly、ShareGPT 等</li>
+    <li><strong>用更强的模型蒸馏</strong>:让 GPT-4 给问题写答案,作为训练数据(很多开源模型走这条路)</li>
+  </ul>
+  <p>这一步的关键不在数据量,而在<strong>数据质量和多样性</strong>——一万条精挑细选的样本,胜过十万条粗糙样本。</p>
+
+  <h3>效果与局限</h3>
+  <p>这一步把<strong>"文本续写器"变成"指令响应器"</strong>。之后再问它"用三句话总结",它就真的按格式回答了——这就是 ChatGPT 跟原始 GPT-3 体验差别巨大的第一道分水岭。</p>
+  <p>但它的回答可能还不够"好":</p>
+  <ul>
+    <li>太冗长(SFT 数据里"理想答案"常写得长,它学会长)</li>
+    <li>太含糊(回避敏感话题、爱用"取决于"打太极)</li>
+    <li>对相似问题死板(因为它只见过有限的样板)</li>
+    <li>不太懂"语气拿捏""察言观色"</li>
+  </ul>
+
+  <h3>SFT vs 微调 vs RLHF 别搞混</h3>
+  <blockquote><strong>SFT 是"微调"的一种</strong>,准确说是"指令微调"。"微调"是个总称,还可以指企业把开源模型在自己的私有数据上继续训练(为了改风格、加领域知识)。SFT 通常指厂商在出厂前做的"指令对齐"步,RLHF 是 SFT 之后的下一步——这三个词常被混用,要看具体语境。</blockquote>
+  `
+},
+
+rlhf:{
+  tag:'训练阶段', en:'Reinforcement Learning from Human Feedback', tagline:'第三阶段:让人给答案排序打分,模型朝"人类更喜欢的方向"优化。',
+  body:`
+  <h3>它解决什么</h3>
+  <p>SFT 让模型"会按指令答",但答案质量参差不齐:可能正确但啰嗦,可能危险(教做炸弹),可能拒绝该回答的问题(过度谨慎),可能没礼貌,可能给出技术上正确但完全不实用的答案。RLHF 的目标就是让它"<strong>答得让人喜欢</strong>"——把模糊的"人类偏好"教给模型。</p>
+  <p>这一步的难点在于:<strong>"好答案"是个主观、复杂、难以用规则定义的东西</strong>。你没法写一个程序判断"这个答案是否友好",但人类一眼就能比较"A 答案和 B 答案哪个更好"。RLHF 的精髓就是利用"人类擅长比较、不擅长打分"这一事实。</p>
+
+  <h3>三步走</h3>
+  <ol>
+    <li><strong>采集偏好数据</strong>:对同一个问题,让 SFT 后的模型生成多个候选答案,请人类标注员两两比较或排序("A 比 B 好""B 比 C 好")。注意是<strong>排序</strong>而非打分——人类难以一致地"给 8.7 分",但容易判断"哪个更好"。</li>
+    <li><strong>训练奖励模型(Reward Model)</strong>:用这些排序数据训练一个小模型,输入"问题+答案"输出一个分数,学会预测"哪种答案人类会更喜欢"——它成为<strong>人类口味的代理 / 自动评分员</strong>。这样模型生成新答案时,不需要每次都拉个真人来评分,问奖励模型即可。</li>
+    <li><strong>用强化学习优化主模型</strong>:让主模型不断生成、奖励模型打分、主模型朝高分方向调整。最经典的算法是 <strong>PPO(Proximal Policy Optimization)</strong>。同时设置一个"别离原模型太远"的惩罚,防止模型为讨好奖励而把语言风格搞崩。</li>
+  </ol>
+
+  <h3>这一步的重要性</h3>
+  <blockquote>RLHF 决定了模型礼貌、安全、有用、不啰嗦。<strong>这一步正是 ChatGPT 和原始 GPT-3 的本质区别</strong>——技术上 ChatGPT 不比 GPT-3 更聪明多少,但 RLHF 让它"像个能用的助手"。很多人讲 LLM 时会漏掉这一步,但它是<strong>"能用"和"惊艳"之间的鸿沟</strong>。</blockquote>
+
+  <h3>常见误解</h3>
+  <ul>
+    <li><strong>"RLHF 让模型更聪明"</strong>——错。RLHF 不增加知识,甚至有"对齐税(alignment tax)"——模型在某些基准测试上会变差,因为它学会了"答得让人喜欢",不是"答得正确"。</li>
+    <li><strong>"奖励模型 = 真人评分"</strong>——错。奖励模型只是个学到的代理,本身有偏差。模型可能学会"骗过奖励模型"的捷径(reward hacking),输出看似好的废话。</li>
+  </ul>
+
+  <h3>副作用:幻觉的元凶</h3>
+  <p>RLHF 也会让模型学会"<strong>自信地胡说</strong>"——因为标注员通常给"有自信、给得出答案、像个专业助手"的回复打高分,即使内容是编的;而"我不确定"或"我不知道"会被认为没用,打低分。模型学到的潜在策略就变成"宁可编一个像样的,也别说不知道"。这是<strong>幻觉变严重的元凶之一</strong>(参见"幻觉"那一讲的第三点)。</p>
+  <p>还有个相关副作用叫 <strong>sycophancy(讨好倾向)</strong>:模型会迎合用户的预设观点,因为"被赞同的答案"在 RLHF 里得分更高。你说"地球是平的对吗",有些模型会犹豫——这是 RLHF 微妙的负面影响。</p>
+
+  <h3>新趋势</h3>
+  <ul>
+    <li><strong>DPO(Direct Preference Optimization)</strong>:不用强化学习这一套,直接用偏好数据数学上等价地优化模型,更稳定、更省算力。现在很多开源模型用 DPO 代替 PPO。</li>
+    <li><strong>RLAIF(Reinforcement Learning from AI Feedback)</strong>:用一个强 AI 替代人类做排序——Anthropic 的 Constitutional AI 路线,把"伦理原则"写成宪法,让 AI 据此自评自改,大大降低人工成本。</li>
+    <li><strong>RLVR(基于可验证奖励的 RL)</strong>:用在推理模型上,奖励不是来自人类口味,而是来自"答案对不对"(数学题答案是否正确、代码是否能跑)——DeepSeek-R1 / o 系列的训练核心。</li>
+  </ul>
+  `
+},
+
+/* ---------- 推理生成 ---------- */
+'b-infer':{
+  tag:'分支', en:'Inference & Generation', tagline:'训练完之后,它实际"吐字"的全过程。',
+  body:`
+  <h3>训练 vs 推理:两个完全不同的阶段</h3>
+  <p>之前三步(预训练、SFT、RLHF)都属于"训练"——一次性投入巨资,改的是模型参数。模型一旦部署,参数就<strong>完全冻结</strong>,后面所有跟它的对话都属于"<strong>推理(Inference)</strong>"——用这套冻结好的参数做预测。</p>
+
+  <h3>这一支要讲的</h3>
+  <p>你输入一句话之后,模型怎么一个个吐出 token 给你看?这一过程被拆成 5 个关键概念:</p>
+  <ol>
+    <li><strong>Inference 推理</strong>:全流程概览</li>
+    <li><strong>概率分布</strong>:输出本质上不是一个词,而是一张概率表</li>
+    <li><strong>采样 vs 贪心</strong>:从概率表里挑词的两种策略</li>
+    <li><strong>Temperature 温度</strong>:控制采样有多"任性"的旋钮</li>
+    <li><strong>Context Window 上下文窗口</strong>:它一次能看到多少 token</li>
+  </ol>
+
+  <h3>为什么要单独学这一段</h3>
+  <p>理解这块,就能解释一大堆日常困惑:</p>
+  <ul>
+    <li>为什么同样的问题问两次,答案不一样?(采样掷骰子)</li>
+    <li>"温度"是干嘛的、为什么写代码该调低?(改概率表陡峭程度)</li>
+    <li>上下文窗口为什么有上限、超过会怎样?(计算复杂度 + 工程权衡)</li>
+    <li>为什么输出 token 比输入 token 贵 3-5 倍?(自回归生成,每个输出 token 都要完整跑一遍模型)</li>
+  </ul>
+  <p>训练阶段是"造车",推理阶段是"开车"——一般用户只接触后者,但前者决定了车的本质。</p>`
+},
+
+inference:{
+  tag:'推理生成', en:'Inference', tagline:'模型实际生成答案的过程(与训练相对)。',
+  body:`
+  <h3>训练 vs 推理</h3>
+  <table>
+    <tr><th></th><th>训练(Training)</th><th>推理(Inference)</th></tr>
+    <tr><td>目的</td><td>调整参数,让模型变聪明</td><td>用已训好的参数生成回答</td></tr>
+    <tr><td>频率</td><td>一次性(几个月),之后通常不动</td><td>每次用都是一次推理(每天几亿次)</td></tr>
+    <tr><td>成本</td><td>巨大(几千万到几亿美元一次)</td><td>单次很小,但用得多,总和巨大</td></tr>
+    <tr><td>谁付钱</td><td>大模型公司前期投入</td><td>API 用户按 token 付费</td></tr>
+    <tr><td>参数变化</td><td>每一步都在改</td><td>完全不动</td></tr>
+  </table>
+  <p>有个反直觉的事实:虽然训练单次成本极高,但<strong>大模型公司的总账单里推理成本反而占大头</strong>——因为训练只做几次,推理是 24×7 不停跑。这也是为什么 Anthropic、OpenAI 都在拼命优化推理效率(MoE、量化、推测解码……),省一分钱乘以 10 亿次就是大钱。</p>
+
+  <h3>推理时发生了什么(完整流程)</h3>
+  <ol>
+    <li>你输入一句话 → 分词器切成 token 序列</li>
+    <li>每个 token 查 embedding 表换成向量(语义地图里的一个点)</li>
+    <li>向量加上位置编码(告诉模型每个词排第几)</li>
+    <li>这串向量经过几十层 Transformer(每层 Attention + FFN)</li>
+    <li>最后一层输出"下一个 token 的概率分布"——整张词表的概率表</li>
+    <li>按某种策略(贪心 / 采样)从概率表挑一个 token 出来</li>
+    <li>把挑出的 token 加到序列末尾,<strong>回到第 1 步</strong>,接着算下一个</li>
+    <li>遇到"结束符"(EOS)或达到 max_tokens 上限,停止</li>
+  </ol>
+  <p>关键的反复:<strong>每生成一个新 token,整个网络都要再跑一遍</strong>——这就是为什么"输出 100 个字"比"输入 100 个字"贵多了——输入只跑一次,每个输出都得跑一次完整网络。(实际有 KV cache 优化,能复用前面算过的中间结果,但生成 token 数依然是主要成本。)</p>
+
+  <h3>两阶段更细致的拆分</h3>
+  <p>专业上,推理被分为两阶段,理解这点能解释很多现象:</p>
+  <ul>
+    <li><strong>Prefill(预填)</strong>:处理你的完整输入,一次性把所有输入 token 并行算完——<strong>快但显存占用大</strong>。这一步决定 TTFT。</li>
+    <li><strong>Decode(解码)</strong>:一个一个吐输出 token,每个 token 都要完整跑一遍——<strong>慢且只能串行</strong>。这一步决定 TPS。</li>
+  </ul>
+
+  <h3>关键指标</h3>
+  <ul>
+    <li><strong>TTFT(Time To First Token,首 token 延迟)</strong>:从你按回车到第一个字蹦出来的时间。短了体验流畅,长了让人焦虑。Prefill 阶段决定。</li>
+    <li><strong>TPS(Tokens Per Second,每秒 token 数)</strong>:吐字速度。GPT-4o 大约 50-100 TPS,Groq 等专用芯片能跑到 500+ TPS。Decode 阶段决定。</li>
+    <li><strong>成本</strong>:输入 token 单价 + 输出 token 单价。<strong>输出通常贵 3-5 倍</strong>——因为生成需要重复跑全网络,而输入只跑一次 prefill。</li>
+    <li><strong>批吞吐量</strong>:服务端同时处理多个请求的能力,决定单卡能服务多少用户。</li>
+  </ul>
+
+  <h3>实战提示</h3>
+  <blockquote>设计应用时,如果对延迟敏感,优先关注 TTFT(用流式输出 + 选 Flash/Haiku 这种轻量档);如果是后台批处理,关注总吞吐和总成本(用批量 API,通常 5 折)。这两种优化的方向完全不同。</blockquote>
+  `
+},
+
+distribution:{
+  tag:'推理生成', en:'Probability Distribution', tagline:'模型输出的不是一个词,而是一整张"词表概率表"。',
+  body:`
+  <h3>真相:它不是"挑一个词",是"算一张表"</h3>
+  <p>我们常说"模型挑出下一个词",其实简化了。真实情况是:模型算完之后,会给<strong>词表里每一个词</strong>(从几万个到十几万个 token)都打一个分,然后换算成概率。所以模型的真实输出是一整张概率表,不是一个词。</p>
+  <p>"挑词"是<strong>后面单独一步</strong>(由采样策略决定),不属于模型本身——同一张概率表,可以用不同策略挑出不同的词。这种"模型输出概率分布 vs 采样选词"的分离,是理解后面温度、采样、生成多样性的关键。</p>
+
+  <h3>具体例子</h3>
+  <p>你输入"今天天气真",它内部得到的是:</p>
+  <pre>好    → 60%
+不错  → 20%
+糟糕  → 8%
+冷    → 5%
+闷    → 2%
+......(剩下几万个 token,每个概率极小,合计约 5%)</pre>
+  <p>注意:即使是"冷门"或"完全错"的词(比如"今天天气真<strong>钢琴</strong>"),它的概率也不是 0——只是极小,可能是 0.0001%。这种概率永远大于零的特性,是后面"高温下模型会跑偏说胡话"的根源。</p>
+
+  <h3>这一步用什么算的</h3>
+  <p>具体流程:</p>
+  <ol>
+    <li>最后一层 Transformer 输出一个向量(比如 4096 维)——这是"上下文压缩出的最终表示"。</li>
+    <li>这个向量乘以一个矩阵,投影到"词表大小"的向量(几万维),叫做 <strong>logits</strong>——每一维是一个词的"原始分数",可以是任意实数(正负都行)。</li>
+    <li>经过 <code>softmax</code> 函数转成概率:先把每个 logit 取指数(让所有值变正),再归一化(让所有概率之和=1)。</li>
+  </ol>
+  <p>softmax 这一步很关键——温度就是在这里下手的(把 logits 除以温度 T 再做 softmax)。这部分参见下一节。</p>
+
+  <h3>常见误解</h3>
+  <ul>
+    <li><strong>"模型给出了答案"</strong>——不,模型给出的是概率分布,采样器才"给出答案"。区分这两步,是理解 LLM 行为的关键。</li>
+    <li><strong>"概率最高的就是正确答案"</strong>——不一定。模型只是认为"在它学到的语言规律里这个词最可能出现",和"事实正确"不是一回事。</li>
+  </ul>
+
+  <h3>意义</h3>
+  <blockquote>模型从来没有"一个标准答案"。它的真实输出是<strong>一整张概率分布</strong>,"答案"是从分布里被采样器挑出来的。这就是为什么同一个问题问两次会得到不同答案——下一节详解。</blockquote>
+
+  <h3>顺嘴一提:logprobs 是什么</h3>
+  <p>OpenAI 等 API 提供 <code>logprobs</code> 参数,可以让模型返回"它每一步选词时的概率"——拿到这些数据,你能做置信度评估、检测幻觉、做答案重排等高级应用。这就是"打开了模型概率表"的视角。</p>
+  `
+},
+
+sampling:{
+  tag:'推理生成', en:'Sampling vs Greedy', tagline:'从概率表里挑一个词出来——两种策略。',
+  body:`
+  <h3>问题设定</h3>
+  <p>上一节讲清楚了:模型每一步输出的是<strong>整张概率表</strong>。但最终我们只能选一个 token 续上去——选哪个?这就是"采样策略"要回答的问题。两种基本策略,衍生出一族变种。</p>
+
+  <h3>策略 A:贪心(Greedy)</h3>
+  <p>简单粗暴——永远选概率最高的那个。比如"今天天气真"后面永远选"好"(60%)。</p>
+  <ul>
+    <li>✅ 完全确定:问一百次答案一模一样,适合需要可复现的场景。</li>
+    <li>❌ 死板:容易陷入重复("好,好,好,真好,真的好……"),因为相同的前缀总产生相同的概率最高词,容易卡死循环。</li>
+    <li>❌ 失去多样性:同样的问题永远只有一个答案,失去"模型可能想出多个有趣方案"的能力。</li>
+  </ul>
+
+  <h3>策略 B:采样(Sampling)</h3>
+  <p>按概率<strong>掷一个"加权骰子"</strong>:60% 的面是"好",20% 的面是"不错",8% 的面是"糟糕"……然后掷一下。大概率会掷出"好",但<strong>也有 20% 可能掷出"不错",还有 8% 可能掷出"糟糕"</strong>。</p>
+  <ul>
+    <li>✅ 自然、有创意、不死板。</li>
+    <li>✅ 同样的问题能给出不同视角的多个答案,适合头脑风暴。</li>
+    <li>❌ 不确定:同一问题问两次结果可能不同(对调试、可复现是个问题)。</li>
+    <li>❌ 偶尔会"跑偏",尤其温度高时(参见下一节)。</li>
+  </ul>
+
+  <h3>为什么差一个词,整段都变了(雪球效应)</h3>
+  <p>模型是一个词一个词往下接的,后面每个词都依赖前面已经选的。所以开头的一个微小分叉会被指数级放大:</p>
+  <ul>
+    <li>第一次开头掷出"<strong>好</strong>"→ "今天天气真好,适合出门散步,我准备去公园……"</li>
+    <li>第二次开头掷出"<strong>不错</strong>"→ "今天天气真不错,要不要一起喝咖啡?新开了一家……"</li>
+    <li>第三次开头掷出"<strong>冷</strong>"→ "今天天气真冷,记得加衣服,这种天最适合在家……"</li>
+  </ul>
+  <p>开头一个小分叉,后面的语境就完全转向,最后三段话内容、长度、走向都不一样。这就是"为什么同一问题问两次答案不同"的根本机制——<strong>不是模型记错了,是采样的随机性被自回归放大了</strong>。</p>
+
+  <h3>变种:Top-k / Top-p(核采样)</h3>
+  <p>纯采样有个问题:即使是 0.0001% 概率的"完全错的词",依然有微小概率被掷出来——一旦掷出来就毁了整段输出。所以实际用的都是"截断 + 采样":</p>
+  <ul>
+    <li><strong>Top-k</strong>:只在概率最高的 k 个词里掷骰子(比如 top 50),其余几万个词直接屏蔽。简单粗暴,缺点是固定 k 不灵活——有时模型很笃定(top 1 占 95%),有时很不确定(top 1 只占 15%),用同一个 k 不合理。</li>
+    <li><strong>Top-p(核采样 / nucleus sampling)</strong>:只在"概率累加到 p%"的那一小撮词里掷(比如 p=0.9 表示累计 90% 概率的那批词)。模型笃定时候选少,不确定时候选多——动态自适应,效果更好,是当今主流。</li>
+  </ul>
+
+  <h3>实际产品怎么组合</h3>
+  <p>实际产品里,<strong>Temperature + Top-p</strong> 通常一起用,共同控制"随机性的大小"和"候选范围"。典型配置:</p>
+  <ul>
+    <li><strong>事实问答 / 代码</strong>:temperature=0(退化成贪心),不需要 top-p</li>
+    <li><strong>日常对话</strong>:temperature=0.7, top-p=0.95</li>
+    <li><strong>创意写作</strong>:temperature=1.0, top-p=0.9</li>
+  </ul>
+
+  <h3>常见误解</h3>
+  <blockquote>"温度调到 0 就完全确定"——理论是,但实际在 GPU 上由于浮点运算精度、批处理顺序等微小扰动,温度=0 时偶尔还是会出现不同结果。需要严格复现的场景,得在服务端额外保证。</blockquote>
+  `
+},
+
+temperature:{
+  tag:'推理生成', en:'Temperature · 温度', tagline:'调的不是骰子结果,是"骰子之前那张概率表的陡峭程度"。',
+  body:`
+  <h3>它实际改的是什么</h3>
+  <p>这是<strong>最常被误解的参数</strong>。温度<strong>不改变哪个词概率最高,只改变"模型有多大胆去选非最优的词"</strong>。机制上很简单:把每个词的原始分数(logits)<strong>除以温度 T</strong>,再算 softmax 概率。</p>
+  <p>"温度"这个名字来自物理学的玻尔兹曼分布——高温下分子运动剧烈、分布平,低温下分子安分、扎堆。把它用在采样上是绝妙的比喻:<strong>高温让模型选词更"狂野",低温让模型选词更"老实"</strong>。</p>
+
+  <h3>低温(趋近 0)</h3>
+  <p>把差距拉得更大,强者更强。原来 60% 的"好"会被推到 90%、99%。</p>
+  <pre>原始: 好 60% | 不错 20% | 糟糕 8% | ...
+低温: 好 92% | 不错  6% | 糟糕 1% | ...</pre>
+  <p>→ 骰子几乎总掷出最高,<strong>稳定、保守、可复现</strong>。温度=0 基本就退化成"贪心"——永远选最高概率词。</p>
+
+  <h3>高温(>1)</h3>
+  <p>把概率表"压平",让弱者也有机会。</p>
+  <pre>原始: 好 60% | 不错 20% | 糟糕  8% | 冷  5%
+高温: 好 33% | 不错 24% | 糟糕 18% | 冷 13%</pre>
+  <p>→ <strong>发散、有创意,但也更容易跑偏、说胡话</strong>。温度极高(>2)时,长尾里的烂词都可能被掷出来,生成结果开始失控。</p>
+
+  <h3>用一个直观的图景理解</h3>
+  <blockquote>想象一座由概率构成的山脉。低温时,最高那座山被陡然拔高,几乎所有时候骰子都落在山顶;高温时,整片山脉被压平成一片高原,骰子落在哪都有可能——包括原本无人问津的角落。<strong>温度不动模型本身,只动"挑词时景观的陡峭程度"。</strong></blockquote>
+
+  <h3>实战推荐</h3>
+  <table>
+    <tr><th>任务</th><th>温度</th><th>原因</th></tr>
+    <tr><td>事实问答、写代码、数学、JSON 抽取</td><td>0–0.3</td><td>要准要稳要可复现,容不得跑偏</td></tr>
+    <tr><td>翻译、摘要、格式化输出</td><td>0.2–0.5</td><td>要忠实原文,但允许少许自然变化</td></tr>
+    <tr><td>日常聊天、通用问答</td><td>0.7(很多 API 默认值)</td><td>自然不死板,有点活气</td></tr>
+    <tr><td>头脑风暴、起名、文案、写诗</td><td>1.0–1.3</td><td>就要它跳出常规</td></tr>
+    <tr><td>故意要"无厘头"</td><td>>1.5</td><td>失控了也无所谓,反而好玩</td></tr>
+  </table>
+
+  <h3>常见误解</h3>
+  <ul>
+    <li><strong>"温度越高越聪明"</strong>——错。温度只控制随机性,跟智商无关。事实问答开高温只会让它瞎编。</li>
+    <li><strong>"温度=0 就完全可复现"</strong>——理论是,但实际在 GPU 上由于浮点运算精度、批处理顺序等微小扰动,温度=0 时偶尔仍有差异。主因不是浮点,而是采样这一步的"掷骰子"——温度=0 关掉了采样,差异主要来自硬件层。</li>
+    <li><strong>"温度和 top-p 是一回事"</strong>——不是。温度<strong>修改概率分布的形状</strong>(陡峭/平坦),top-p<strong>截断候选范围</strong>(只在前 90% 概率词里选)。两者常一起用,但作用机制不同。</li>
+  </ul>
+
+  <h3>横向对比:温度 vs 采样策略</h3>
+  <p>有些 API(比如 Anthropic)推荐"要么调温度,要么调 top-p,别同时大幅调",因为两者效果会叠加,变得难以预测。最简单的心智模型:<strong>需要确定就把温度调到 0,需要创意就温度调到 1,日常用默认</strong>——不用动 top-p。</p>
+  `
+},
+
+context:{
+  tag:'推理生成', en:'Context Window', tagline:'模型一次能"看到"的 token 上限——它的"工作记忆"。',
+  body:`
+  <h3>定义</h3>
+  <p>上下文窗口指的是模型每次推理时能"看到"的 token 总数上限,包括<strong>系统提示 + 你的输入 + 它已经生成的输出</strong>——所有 token 加起来不能超过这个上限。超出会发生什么?要么报错被截断,要么模型"忘记"开头(早期被挤出窗口的内容直接消失)。</p>
+  <p>形象点:这是模型的<strong>"工作记忆"</strong>,类似人类同一时间能在脑子里同时处理的信息量。窗口外的东西,模型完全不知道——它没有"想想之前聊了啥"的能力,只能看到当前窗口里的内容。</p>
+
+  <h3>历史演进</h3>
+  <ul>
+    <li>GPT-2(2019):1024 token(几百字,只能聊几句)</li>
+    <li>GPT-3(2020):2048</li>
+    <li>GPT-3.5(2022):4k → 16k</li>
+    <li>GPT-4:8k → 32k → 128k</li>
+    <li>Claude 3:200k(可放一本中等长度的书)</li>
+    <li>Gemini 1.5:1M → 2M(长上下文领跑,可放几十本书或整个代码仓库)</li>
+    <li>Llama 4 Scout:号称 10M(实际可用程度待验证)</li>
+  </ul>
+  <p>三年间从 1k 跳到 1M,扩了 1000 倍——这是过去几年大模型最显著的进步之一,背后是 RoPE 位置编码、Flash Attention、Ring Attention 等一系列工程创新。</p>
+
+  <h3>为什么这么重要</h3>
+  <ul>
+    <li><strong>整本书塞进去 → 基于这本书回答</strong>——免去预先训练或微调,把书丢给它就能问答了。</li>
+    <li><strong>整个代码库塞进去 → 跨文件改 bug、重构</strong>——这是 Claude Code、Cursor 等编程助手的核心能力来源。</li>
+    <li><strong>长聊天历史 → 多轮对话不"失忆"</strong>——能记住几小时前你说的话。</li>
+    <li><strong>长视频 / 长文档分析</strong>——把整部电影的字幕、整份合同的全文一次性扔进去做分析。</li>
+  </ul>
+
+  <h3>代价</h3>
+  <ul>
+    <li>上下文越长,<strong>推理越慢、越贵</strong>。Attention 的计算复杂度随长度近似平方增长(Flash Attention 等工程优化能改善但不能根除)。</li>
+    <li>显存占用也线性增长——这是为什么超长上下文模型的服务成本极高。</li>
+    <li><strong>"Lost in the Middle"现象</strong>:研究发现超长上下文里,模型容易记住开头和结尾,中间部分关注度明显下降。把关键信息放在中间,模型可能"看不见"。</li>
+    <li><strong>"针在干草堆里"测试</strong>:行业标准测试,把一句无关紧要的话(针)藏在超长文档(草堆)的不同位置,看模型能不能找出来。Gemini 1.5 在 1M 上下文里基本能找到,但很多模型的"声称长度"和"实际可用长度"差别很大。</li>
+    <li>所以"<strong>100 万上下文"不代表"100 万都用得好"</strong>——得测。</li>
+  </ul>
+
+  <h3>实战提示</h3>
+  <p>遇到长资料场景的选择:</p>
+  <ul>
+    <li><strong>资料 &lt; 上下文窗口 + 一次性问完</strong>:直接塞,简单粗暴。</li>
+    <li><strong>资料 &gt; 上下文窗口,或要反复问</strong>:用 <strong>RAG(检索增强)</strong>,只把最相关的几段塞进去——见后面 RAG 那一讲。</li>
+    <li><strong>多轮长对话</strong>:实现"对话摘要"——把前面 N 轮对话压缩成几句摘要,腾出窗口给新内容。</li>
+    <li><strong>关键信息别藏中间</strong>:重要指令放在 prompt 开头或结尾,避免 Lost in the Middle。</li>
+  </ul>
+
+  <h3>常见误解</h3>
+  <blockquote>"上下文窗口 = 长期记忆"——错。它是<strong>瞬时记忆</strong>,对话一结束,模型就什么都不记得了。下一次新会话,模型重新开始,完全不知道你是谁、之前聊过什么。要"长期记忆",得在应用层另外做(把历史存进数据库,下次召回塞进上下文)。</blockquote>
+  `
+},
+
+/* ---------- 能力边界 ---------- */
+'b-limit':{
+  tag:'分支', en:'Limitations · 四个必知的坑', tagline:'用 LLM 前必须搞懂的能力边界。',
+  body:`
+  <h3>这一支为什么单独拎出来</h3>
+  <p>前面学的都是"它怎么工作的、能干什么"。但要把 LLM 用对、不踩坑,<strong>更重要的是知道"它不能干什么"</strong>。很多人因为不了解这四个坑,把 AI 当万能搜索引擎,最后被坑得很惨——医生引用了不存在的论文、律师交了引虚假案例的诉状、学生被假数据骗去做了错的作业。</p>
+
+  <h3>四个坑可以分两类</h3>
+  <ul>
+    <li><strong>"它知道得不对/不全"</strong>:<strong>幻觉</strong>(会编)、<strong>知识截止</strong>(信息冻结在某个日期)</li>
+    <li><strong>"它的能力边界"</strong>:<strong>涌现能力</strong>(规模够大才有,小模型干不了)、<strong>不会真算数</strong>(它在猜不在算)</li>
+  </ul>
+
+  <h3>共同根源</h3>
+  <p>这些不是 bug,而是<strong>"猜下一个词"这个本质决定的必然</strong>:</p>
+  <ul>
+    <li>会幻觉——因为它优化的是"像不像",不是"对不对"</li>
+    <li>有知识截止——因为知识是一次性烤进参数的</li>
+    <li>有涌现门槛——因为复杂能力需要足够多参数才能"装下"</li>
+    <li>不会算数——因为它没在算,只在模式匹配</li>
+  </ul>
+
+  <h3>怎么用这一支</h3>
+  <blockquote>把这四个坑当成"该 LLM 出马还是该用别的工具"的判断标准。事实问答?加 RAG。需要最新信息?接搜索。要算数?走代码。这些都不是 LLM 失败,而是<strong>"分工"</strong>——LLM 干它擅长的(语言理解、生成、推理),把不擅长的交给别的工具。</blockquote>`
+},
+
+hallucination:{
+  tag:'能力边界', en:'Hallucination · 幻觉', tagline:'它会非常自信地编造——不存在的论文、假人名、错的日期。',
+  body:`
+  <h3>典型现场</h3>
+  <p>幻觉不是"偶尔答错",而是"煞有介事地编造一个看起来完全可信、但实际不存在的事物"。真实案例:</p>
+  <ul>
+    <li><strong>2023 年美国一位律师</strong>用 ChatGPT 写诉状,引用了 6 个判例——后来法官查发现全是 ChatGPT 编的,案件编号、当事人、判决理由全是假的,但格式完美无可挑剔。律师被处罚。</li>
+    <li>问它"某教授的代表论文是什么",它能给出标题、期刊、年份、DOI——全是编的,但听起来完全合理。</li>
+    <li>问它某个 API 怎么用,它写出来的函数名和参数,可能是它从风格上推断"应该长这样",而不是真实存在。</li>
+  </ul>
+
+  <h3>为什么会幻觉(根因)</h3>
+  <blockquote>模型的训练目标是"<strong>生成最像答案的文字</strong>",不是"说真话"。它优化的是通顺、合理、像那么回事——<strong>真假从来不在它的目标函数里</strong>。</blockquote>
+
+  <h3>三个原因叠加</h3>
+  <ol>
+    <li><strong>知识是"有损压缩"进参数的</strong>。模型把万亿 token 的知识压进几百亿参数,记的是"大概的样子",不是逐字事实。问它没存准的细节(比如某个偏门作家的生卒年月),它就用"统计上最像的内容"把空填上——就像你依稀记得某本书"大概讲了啥",硬要你说出具体页码,你也会编。模型干的就是这种"硬编"。</li>
+    <li><strong>它分不清"真知道"和"听起来对"</strong>。人类有元认知能力——能感觉到"诶我这个不太确定"——但模型内部没有"事实核查开关",在它眼里,"合理"和"真实"是同一种信号(都是高概率的语言模式)。它说"巴黎是法国首都"和它说"巴黎是德国首都",在它内部的运算机制完全一样,只是前者概率高些。</li>
+    <li><strong>RLHF 还火上浇油</strong>。对齐阶段,标注员往往给"自信、有用、给得出答案"的回复打高分,而"我不确定""我不知道"被认为没用,打低分。久而久之模型学到的潜在策略就变成"宁可编一个像样的,也别承认不知道"。这正是 RLHF 一节里讲的副作用。</li>
+  </ol>
+
+  <h3>常见误解</h3>
+  <ul>
+    <li><strong>"模型在故意撒谎"</strong>——不,模型没有"撒谎"的概念。它只是在生成统计上最可能的下一个词。它"不知道自己不知道"。</li>
+    <li><strong>"更大的模型不会幻觉"</strong>——错。更大的模型幻觉率确实更低,但永远不为零。GPT-4、Claude Opus 仍然会编。</li>
+    <li><strong>"上下文越长越不容易幻觉"</strong>——部分对。给它真实材料(RAG)能大幅减少幻觉,但纯靠长上下文不能根治——它还是会基于材料做"过度推断"。</li>
+  </ul>
+
+  <h3>怎么缓解(目前无法根治)</h3>
+  <ul>
+    <li><strong>RAG(检索增强)</strong>:先去真实资料库查,让它"看着材料回答"并标出处——<strong>当前最主流、最有效的解法</strong>,参见后面 RAG 那一讲。</li>
+    <li><strong>联网搜索 + 工具调用</strong>:让它查证而不是凭记忆。Perplexity、ChatGPT Search、Claude 的 web search 都走这条路。</li>
+    <li><strong>要求标注来源 + 人工核对</strong>:尤其论文、数据、法条、医疗信息这种"错了出大事"的领域,任何 LLM 输出都得人工复核来源。</li>
+    <li><strong>降低温度</strong>:做事实类问答时把温度调到 0,减少采样随机性。</li>
+    <li><strong>提示里允许它说"我不确定"</strong>:"如果你不确定就说不知道,不要瞎编",能显著减少硬编(但不能完全消除)。</li>
+    <li><strong>用推理模型</strong>:推理模型会在思维链里自我检查、回退,幻觉率明显更低——但更慢更贵。</li>
+    <li><strong>多模型交叉验证</strong>:让两个不同厂商的模型分别答,对比矛盾点,可疑的再人工核对。</li>
+  </ul>
+
+  <h3>底线认知</h3>
+  <p>幻觉是<strong>"猜下一个词"这个本质决定的"特性",不是 bug</strong>——只要 LLM 还是基于概率生成,这事就根除不了,只能缓解。所有产品设计都得把这点考虑进去:<strong>关键决策不要让 LLM 单独负责,要么有人复核,要么有工具校验</strong>。</p>
+  `
+},
+
+cutoff:{
+  tag:'能力边界', en:'Knowledge Cutoff', tagline:'它只知道训练数据截止日之前的事。',
+  body:`
+  <h3>为什么</h3>
+  <p>模型的知识在<strong>预训练阶段一次性"烤"进参数,之后就冻结了</strong>。训练一次要几个月、几千万到几亿美元、上万张显卡,不可能每天甚至每周重训。所以厂商通常在某个日期截取一份训练数据快照(比如 GPT-4o 的 cutoff 是 2023 年 10 月),训出来之后这就是它对世界的全部认知。</p>
+  <p>就算几个月后部署上线,它"心目中的今天"还停留在那个截止日。你跟它聊天的当下是 2026 年,但它可能以为还是 2023 年——这种"穿越感"是 LLM 默认的常态。</p>
+
+  <blockquote>它本质是"<strong>互联网在某个时间点的一张照片</strong>",不是实时直播。照片拍完,世界继续变,但照片不会自己更新。</blockquote>
+
+  <h3>影响</h3>
+  <ul>
+    <li><strong>最新新闻、最近发布的产品、近期事件</strong>:要么不知道(老老实实说),要么用旧信息硬答(更危险)</li>
+    <li><strong>编程库的新 API、最新框架版本</strong>:可能不知道。问 Next.js 15 的新特性,如果它 cutoff 在 14 之前,它可能编出不存在的 API</li>
+    <li><strong>动态信息</strong>:"现任 XX 是谁""今年奥运冠军是谁""某公司现在 CEO"——容易给出过时答案</li>
+    <li><strong>价格、汇率、股价</strong>:永远不要直接问 LLM 这些,过期程度无法预估</li>
+    <li><strong>它自己也不知道现在是什么时候</strong>——它的"今天"永远是训练截止日附近</li>
+  </ul>
+
+  <h3>易被忽视的细节:cutoff 不是 release</h3>
+  <ul>
+    <li><strong>训练截止日</strong>:数据采集到这里截止(比如 2023 年 10 月)</li>
+    <li><strong>发布日</strong>:模型上线给用户用(比如 2024 年 5 月)</li>
+    <li>这之间常常隔半年到一年——用户在用的时候,它的知识可能已经过期一年多了</li>
+  </ul>
+
+  <h3>怎么解</h3>
+  <ul>
+    <li><strong>联网搜索</strong>:让模型实时去拿——Perplexity、ChatGPT Search、Claude 的 web search 都走这条路。"带搜索的 AI 产品越来越多"的根本原因就是治这个坑。</li>
+    <li><strong>RAG / 喂资料</strong>:把最新文档、新闻直接放进对话上下文,让它"看着材料回答"——参见 RAG 那一讲。</li>
+    <li><strong>厂商定期更新</strong>:每隔几个月发新版本,把截止日往后推。但永远滞后,且老版本依然存在(很多人还在用)。</li>
+    <li><strong>简单粗暴</strong>:把最新信息(财报、新闻链接、版本文档)直接粘贴进提问。便宜有效,适合一次性场景。</li>
+    <li><strong>明确告诉它今天日期</strong>:在系统提示里写"今天是 2026 年 5 月 27 日",它能据此判断哪些信息是"老的"——但它依然不知道新事件,只是不会再用旧信息硬答时间问题。</li>
+  </ul>
+
+  <h3>常见误解</h3>
+  <blockquote>"它说自己 cutoff 是 X 月,就一定准"——不一定。模型对自己 cutoff 日期的回答本身就可能错(因为它没真的"看时间表",只是根据训练数据的统计推断)。准确的 cutoff 以官方文档为准。</blockquote>
+  `
+},
+
+emergent:{
+  tag:'能力边界', en:'Emergent Abilities · 涌现能力', tagline:'模型大到某个规模,会"突然"冒出新能力。',
+  body:`
+  <h3>现象</h3>
+  <p>小模型完全不会的能力——多步推理、简单算术、按复杂指令办事、看几个例子就照做(<strong>few-shot learning</strong>)、做思维链、写复杂代码——模型一旦大到某个规模,<strong>会"突然"出现</strong>,而不是慢慢线性变好。</p>
+  <p>具体例子:让模型做"两位数加法",参数 10B 以下的模型准确率长期是 0%(完全不会),到了某个规模(比如 60B)突然跳到 30%,再往上又跳到 80%——曲线像台阶,不是缓坡。同样情况发生在多语言翻译、复杂逻辑题、特定领域知识上。</p>
+
+  <h3>形象比喻</h3>
+  <blockquote>就像水加热——0°C 到 99°C 一直是液态,看不出剧烈变化;到 100°C 那一瞬间突然变成气态。模型"涌现"就有点这种感觉:量变到一定程度,某种"质"就突然出现。</blockquote>
+
+  <h3>为什么(还没完全搞懂)</h3>
+  <p>学术界给两个主流解释,各有道理:</p>
+  <ol>
+    <li><strong>"凑齐了才能用"假说</strong>:复杂任务(比如多步推理)需要好几个子能力同时在线——理解题意、做出推断、保持中间状态、生成答案。模型太小时,链条上随便缺一环,整件事就做不成,准确率≈0;一旦规模够大、所有子能力都达标,整条链突然打通,成绩跳变。就像装一台机器,缺一个齿轮整机不转,补齐那一刻才能跑。</li>
+    <li><strong>"评分错觉"假说</strong>:斯坦福 2023 年一篇论文指出,"突然涌现"有时是<strong>评分标准太苛刻</strong>造成的——很多评测要求"必须一字不差全对才算分",这种 0/1 评分会把"60% 接近正确 → 80% 接近正确"这种平滑进步,展示成"0% → 80%"的突变。换连续尺子(比如 BLEU 或部分得分),曲线就平滑了——其实模型一直在进步,只是评分让它看起来像突变。</li>
+  </ol>
+  <p>真相可能是两者都对一部分——有些能力确实是阶梯式涌现,有些只是评分错觉。但<strong>"大模型能干小模型干不了的事"这个事实是确定的</strong>。</p>
+
+  <h3>怎么"利用"(这不是 bug 是好事)</h3>
+  <ul>
+    <li><strong>想要某个模型还没有的能力 → 换更大/更新的模型</strong>。这正是大家拼命把模型做大的原因——不是为了"参数多好看",而是为了拿到下一个涌现台阶上的新能力。</li>
+    <li><strong>不想纯靠"运气涌现"</strong> → 主动诱发:给几个示范(few-shot learning),让它"一步步想"(思维链 Chain-of-Thought)——这些技巧能让小模型部分模仿大模型的涌现能力。</li>
+    <li><strong>推理模型</strong>就是把"多步推理"从"碰运气涌现"工程化成"稳定可靠"——通过 RL 训练把思维链能力稳定下来,小模型也能做到。参见后面的"推理模型"那一讲。</li>
+  </ul>
+
+  <h3>背后的规律:Scaling Law</h3>
+  <p><strong>Scaling Law(规模定律)</strong>:算力、数据、参数同步加大,模型能力可预测地变强——这种可预测性正是 OpenAI、Anthropic 等公司敢投几亿美元训新模型的底气。"加 10 倍算力,基准分数大约提多少"是有公式预估的,所以"训大模型"不是赌博,是有理论支撑的工程。</p>
+  <p>这是过去 5 年大模型军备竞赛的理论支柱。但<strong>"涌现"是 Scaling Law 之外的彩蛋</strong>——基准分数可预测地涨,但"突然冒出某种新能力"是惊喜,且无法预测会是什么能力。这种"训出来才知道它能干什么"的特性,让大模型更像生物进化,不像传统工程。</p>
+
+  <h3>顺嘴一提:涌现的尽头?</h3>
+  <p>2024-2025 年开始,业内有担忧"<strong>Scaling Law 在变缓</strong>"——加算力的收益开始递减,纯靠堆参数已经不那么管用。新方向是:推理时计算(让模型思考更久)、合成数据(让模型自己造训练数据)、强化学习(用 RL 替代纯预训练)。涌现的下一波可能不来自"更大",而来自"更聪明地用算力"。</p>
+  `
+},
+
+math:{
+  tag:'能力边界', en:'不会真算数', tagline:'它根本没在"计算",它在"猜"。',
+  body:`
+  <h3>现象</h3>
+  <p><code>4823 × 7591</code> 这种大数乘法,它经常算错,而且错得很自信。让它对比"<code>3.11 和 3.9 哪个大</code>"也可能翻车——它会说 3.11 更大,因为 11 > 9。让它数"strawberry 这个单词里有几个 r",早期版本经常数错。这些都不是疏忽,是它的本质决定的。</p>
+
+  <h3>为什么</h3>
+  <ul>
+    <li><strong>脑子里没有计算器</strong>。LLM 内部没有真正执行加减乘除的电路,只有矩阵乘法。它从海量文本里学到"<code>2+2</code> 后面通常跟 <code>4</code>"这种模式,本质是<strong>模式匹配,不是计算</strong>。</li>
+    <li><strong>常见的能背,罕见的就编</strong>。简单算式它在训练数据里见过几百万次,能"背"出来(<code>9×9=81</code>);但 <code>4823 × 7591</code> 这种具体组合它没见过对应模式,只能凭"看起来像"硬猜出一个"长度差不多、位数差不多"的数 → 出错。</li>
+    <li><strong>Token 切分还帮倒忙</strong>。数字被切 token 时常常对不齐:比如 4823 可能被切成 <code>48 + 23</code> 或 <code>4 + 823</code>,7591 又被切成另一种切法。模型连"个位对个位"都难做到,更别说进位。这就是为什么"3.11 vs 3.9"会翻车——小数点两边被切成独立 token,模型按词频比较"11 vs 9"。</li>
+    <li><strong>没有"工作记忆"</strong>。人做大数乘法靠"心算 + 暂存",模型只能用"已生成的 token"作为暂存——如果你不让它把过程写出来,它就没地方记中间结果,只能直接猜结果。这就是思维链能救命的原因。</li>
+  </ul>
+
+  <h3>常见误解</h3>
+  <blockquote>"它算错说明它笨"——错。它在"猜"不在"算"。让它<strong>把竖式一步步写出来</strong>(思维链),同一道题它就能算对——并不是它更聪明了,而是它把大问题拆成了它能处理的小模式。</blockquote>
+
+  <h3>怎么解(这是最好解的一个坑)</h3>
+  <ul>
+    <li><strong>工具调用 / 代码执行 ★标准解法</strong>。让模型把算术任务交给计算器或 Python 算,再把结果拿回来。ChatGPT 的 Code Interpreter、Claude 的 computer use、各种 LangChain agent 都这么做。<strong>一旦走代码,大数乘法准确率 100%</strong>。</li>
+    <li><strong>思维链("一步步算")</strong>。逼它把竖式一步步写出来:"先算 4823 × 1 = 4823,再算 4823 × 90 = 434070……"——把大问题拆成它能处理的小模式,准确率从 10% 跳到 80%+。推理模型默认就是这么干的,这是它们"擅长数学"的根源。</li>
+    <li><strong>检查工具</strong>:让另一个模型验算它的结果,不一致就重新算。</li>
+  </ul>
+
+  <h3>工程铁律</h3>
+  <blockquote><strong>凡是要精确数字(财务、计量、统计、库存、价格、合同金额),一律走代码,绝不信模型口算。</strong>这是任何 LLM 应用的红线。模型能写出"算这个数的 Python 代码",但<strong>不要</strong>让它直接告诉你数字结果。</blockquote>
+
+  <h3>反例:它擅长的数学</h3>
+  <p>不要误以为"LLM 完全不会数学"——它<strong>非常擅长"理解数学题、给出解题思路"</strong>,只是不擅长"做最后一步算术运算"。所以教学场景、解题思路讲解、推导逻辑梳理,LLM 都做得很好;只是最后一步算具体数字,要交给工具。这种"<strong>逻辑分到模型、算数分到工具</strong>"的分工是最佳实践。</p>
+  `
+},
+
+/* ---------- 进阶 ---------- */
+'b-adv':{
+  tag:'分支', en:'Advanced Concepts', tagline:'当代 LLM 最常听到的四个关键词。',
+  body:`
+  <h3>为什么单独有这一支</h3>
+  <p>前面学的概念都是 LLM 的"基本工"——任何一个模型都有。这一支讲的是<strong>过去两年新冒出来、最有商业意义、最常出现在新闻标题里</strong>的四个进阶概念。理解它们,你就能看懂为什么 DeepSeek 这么便宜、为什么 o1 / R1 引起轰动、为什么 Gemini 能看视频、为什么"企业知识库"满大街都在用。</p>
+
+  <h3>四个进阶概念,分别在解决 LLM 的不同瓶颈</h3>
+  <ul>
+    <li><strong>MoE 混合专家</strong>:解决"造得起多大"(成本瓶颈)——用"按需分诊"的思路,让总参数极大、单次激活极少,鱼和熊掌兼得。</li>
+    <li><strong>Reasoning 推理模型</strong>:解决"想得多深"(能力瓶颈)——让模型先打草稿再回答,把"碰运气涌现"变成"稳定推理"。</li>
+    <li><strong>Multimodal 多模态</strong>:解决"能感知什么"(输入瓶颈)——给模型装上眼睛和耳朵,图、音、视频和文字一起处理。</li>
+    <li><strong>RAG 检索增强</strong>:解决"知识对不对/新不新"(可靠瓶颈)——闭卷考改开卷考,先查再答。</li>
+  </ul>
+
+  <h3>串起来就是当代 AI 产品的全貌</h3>
+  <p>看今天最前沿的 AI 应用,几乎都是这四件武器的组合:</p>
+  <ul>
+    <li>ChatGPT Plus = 推理模型(o 系列) + 多模态(图/语音) + RAG(联网)</li>
+    <li>Claude = 推理模型(extended thinking) + 多模态(图) + 工具调用</li>
+    <li>Gemini = 原生多模态 + 推理 + 超长上下文(部分替代 RAG)</li>
+    <li>DeepSeek-R1 = MoE + 推理模型 = 极致性价比</li>
+  </ul>
+  <p>所以这一支不是"加分题",是<strong>理解 2025-2026 年 AI 产品的入场券</strong>。</p>`
+},
+
+moe:{
+  tag:'进阶概念', en:'Mixture of Experts · 混合专家', tagline:'大医院按需分诊——每次只惊动两个专家,但全院总知识量极大。',
+  body:`
+  <h3>大白话</h3>
+  <p>把"一个什么都懂的全科医生"换成"一家有很多专科医生的大医院 + 门口一个分诊护士"。你来看病,<strong>分诊护士(路由)</strong>瞄一眼把你分给最对口的 1–2 个专科医生(<strong>专家</strong>),其他医生这次根本不上班。</p>
+  <blockquote>所以每次看病只惊动两个医生(<strong>快、省</strong>),但整家医院的总知识量极大(<strong>强</strong>)。这就是 MoE 最迷人的地方:打破"模型越大 = 推理越贵"的死循环。</blockquote>
+
+  <h3>原理</h3>
+  <p>每层 Transformer 有 Attention(横向交流)+ FFN(各自消化)。<strong>MoE 改的就是 FFN 那一步</strong>(回想一下:FFN 占模型 2/3 参数,在这里下手最划算):</p>
+  <ol>
+    <li>把原来"一个 FFN"换成"<strong>一排并列的 FFN</strong>"(每个叫一个<strong>专家 expert</strong>),典型配置 8 个、16 个、64 个,甚至 256 个专家。</li>
+    <li>前面加一个小小的<strong>路由网络(router / gating network)</strong>,它是个微型神经网络,看完当前 token 的向量后,输出"该把这个 token 送给哪几个专家"的决定。</li>
+    <li>每处理一个 token,路由挑出 top-k 个专家(比如 64 个里选 2 个,叫 "top-2 routing")干活,其余专家这一步<strong>完全不动</strong>——零计算开销。</li>
+  </ol>
+  <p>注意:这里的"专家"不是人类意义的"医学专家""法律专家"——训练完后,每个专家学到了什么,人类很难解读。只是数学上发现这套机制能省算力 + 保性能。</p>
+
+  <h3>关键:总参数 vs 激活参数</h3>
+  <p>这是理解 MoE 时<strong>必须分清的两个数字</strong>:</p>
+  <ul>
+    <li><strong>总参数(total params)</strong>:整个模型的参数总和——决定知识容量和显存需求</li>
+    <li><strong>激活参数(active params)</strong>:每个 token 实际用到的参数——决定推理速度和成本</li>
+  </ul>
+  <p>例子:DeepSeek-V3 总参数 <strong>6710 亿</strong>,但每个 token 实际只激活约 <strong>370 亿</strong>。也就是<strong>花 37B 规模的算力成本,享受 671B 规模的知识容量</strong>——这就是为什么 DeepSeek 能做到极致性价比。</p>
+
+  <h3>常见误解</h3>
+  <ul>
+    <li><strong>"MoE 比 Dense 一定强"</strong>——不一定。同样激活参数下,MoE 通常比 Dense 更强(因为有更多知识可调);但同样总参数下,Dense 通常更强(因为参数被更彻底地利用)。</li>
+    <li><strong>"省的是显存"</strong>——错。所有专家平时都得装在内存里待命,只是计算时只用一小部分。<strong>MoE 模型"很吃显存但跑得快"</strong>——这是部署 MoE 的核心痛点。</li>
+    <li><strong>"专家有明确分工"</strong>——不准确。研究发现专家分工是涌现的、模糊的,你不能指着第 7 个专家说"这是数学专家"。它们的分工很难解读。</li>
+  </ul>
+
+  <h3>代价(别误会)</h3>
+  <ul>
+    <li><strong>显存压力大</strong>:同样 70B 激活参数,MoE 总参数可能是 400B,显存需求是 5-10 倍。所以"很省钱"是指<strong>每 token 算力</strong>省,而非整体部署成本省。</li>
+    <li><strong>训练时要保证各专家负载均衡</strong>——别让某几个专家被路由器"宠幸"累死、其他闲到没用。这需要专门的负载均衡损失函数,是 MoE 的工程难点之一。</li>
+    <li><strong>对小请求不友好</strong>:用户少时,显存常驻成本摊不薄,反而比 Dense 更贵。MoE 适合大流量场景。</li>
+  </ul>
+
+  <h3>代表与对比</h3>
+  <p>典型 MoE 模型:<strong>DeepSeek-V3 / R1</strong>(671B / 37B 激活)、<strong>Mixtral 8×7B</strong>(47B / 13B 激活)、<strong>Llama 4</strong>(MoE)、<strong>GPT-4</strong>(业内传闻是 MoE,8×220B)。</p>
+  <p>对比的是 <strong>Dense(稠密)模型</strong>——每个 token 都动用全部参数,比如 Llama 3 70B、Qwen 72B。Dense 更简单、训练更稳定,但同等智力级别下推理更贵。</p>
+  <p><strong>趋势</strong>:2024-2026 年,旗舰大模型几乎都在转向 MoE——OpenAI、Google、Anthropic、Meta、DeepSeek、阿里 Qwen 全在做。MoE 已经从"实验性架构"变成"主流大模型的标配"。</p>
+  `
+},
+
+reasoning:{
+  tag:'进阶概念', en:'Reasoning Models · 推理模型', tagline:'先在草稿纸上演算一遍再回答,而不是脱口而出。',
+  body:`
+  <h3>大白话</h3>
+  <p>普通模型像<strong>脱口而出</strong>——你一问它张嘴就答(快,但复杂问题容易翻车);推理模型像<strong>先在草稿纸上演算一遍再回答</strong>——它会先自言自语想一长串,检查、回退、换思路,把草稿想清楚了,才给你最终答案。</p>
+  <p>实际用感受:你问 GPT-4o "证明这个数学定理",它可能 3 秒给你一个看似对实则有漏洞的证明;问 o1 / o3,它"思考"了 30 秒,然后给一个详尽、严密、能扛得住反驳的证明。<strong>慢但靠谱</strong>。</p>
+
+  <h3>原理</h3>
+  <p>底子还是同一个 Transformer、还是"猜下一个词",<strong>没换引擎</strong>。诀窍在于:它被训练成"<strong>先生成一长串思考过程(思维链 Chain-of-Thought),再生成最终答案</strong>"。一个回答可能是这样的结构:</p>
+  <pre>&lt;思考&gt;
+让我想想这道题…… 它问的是 X
+首先我可以试试方法 A…… 不对,等等,这里有个问题
+那换方法 B…… 嗯,这一步是 ……
+让我验算一下…… 对的
+所以答案应该是 Y
+&lt;/思考&gt;
+
+最终答案:Y</pre>
+
+  <h3>为什么"多写一堆草稿"就能变聪明</h3>
+  <ol>
+    <li><strong>每个 token 都是一次"计算步"</strong>。模型本质就是"一个 token = 一次前向计算"——逼它一步步写竖式、写推理过程,等于强迫它做更多次计算。把难题拆成无数能可靠预测的小步,准确率就上去了。<strong>生成的 token 越多 = 投入的"思考算力"越多</strong>。</li>
+    <li><strong>能自我纠错</strong>。在草稿里它可以发现"刚才那步错了"、回退重来、换个方法——这是脱口而出做不到的。"等等,这里有问题""让我重新想想"这种自我反思,在推理模型的草稿里很常见。</li>
+    <li><strong>把"内部隐式推理"外化成"显式 token"</strong>。隐式推理受限于模型层数(96 层就是 96 步),显式推理可以写几万 token——计算预算大了几个数量级。</li>
+  </ol>
+
+  <h3>怎么训出来:用 RL,不用人工标</h3>
+  <p>关键创新是:不用人工写"标准思维链"(那样太贵),主要靠<strong>强化学习(RL)+ 可验证奖励</strong>——</p>
+  <ol>
+    <li>拿数学题、编程题、逻辑题这种<strong>答案能自动判对错</strong>的题(数学题有标准答案、代码题跑测试用例就行)</li>
+    <li>让模型反复尝试不同思维链</li>
+    <li><strong>答对的思维链给奖励,答错的给惩罚</strong></li>
+    <li>久而久之它自然学会"怎么想才容易想对"——包括自我反思、回退、验证这些行为模式,都是自发涌现的,没人教</li>
+  </ol>
+  <p>DeepSeek-R1 论文展示了一个惊人现象:在 RL 训练过程中,模型在某个时刻<strong>突然"学会"了"等等,让我重新想想"</strong>——这种元认知行为是自发涌现的,不是人写进去的。</p>
+
+  <h3>核心新范式:Test-Time Compute</h3>
+  <blockquote>这背后是个新范式叫 <strong>test-time compute / 推理时扩展</strong>:不光训练时堆算力,<strong>回答时也多花算力换更高智商</strong>。OpenAI 提出的"o1 让模型多想几秒,准确率翻倍"是这一范式的标志。<br><br>等于打开了 Scaling Law 的第二条曲线——以前是"模型越大越聪明",现在是"<strong>给同一模型更多思考时间也越聪明</strong>"。两条曲线相乘,智能空间大幅扩展。</blockquote>
+
+  <h3>取舍</h3>
+  <p>慢、贵——推理模型吐的 token 是普通模型的<strong>几倍到几十倍</strong>(因为思维链可以很长),所以成本和延迟也按比例放大。所以——</p>
+  <ul>
+    <li><strong>该用</strong>:数学、编程、逻辑推理、复杂规划、严谨证明、多步任务、研究类问题</li>
+    <li><strong>别用</strong>:闲聊、"法国首都是哪"、写邮件、翻译——杀鸡用牛刀,又慢又费钱,体验还不如普通模型</li>
+    <li><strong>新趋势</strong>:"<strong>混合模式</strong>",同一个模型自己判断"这题该秒答还是该深思",自动决定用不用思维链——Claude 4 的 extended thinking、Gemini 2.5、GPT-5 都在走这条路</li>
+  </ul>
+
+  <h3>代表</h3>
+  <p><strong>OpenAI o 系列</strong>(o1、o3、o4——思维链藏起来不给用户看,只给最终答案,理由是商业机密)、<strong>DeepSeek-R1</strong>(完整展示思维链,把推理范式的秘方公开开源,引爆全行业)、<strong>Claude</strong> 的 extended thinking(可控,默认关闭)、<strong>Gemini 2.5</strong> 的 thinking、<strong>Qwen</strong> 的 QwQ。</p>
+  `
+},
+
+multimodal:{
+  tag:'进阶概念', en:'Multimodal · 多模态', tagline:'给模型不只配"会读字的脑子",还装上眼睛和耳朵。',
+  body:`
+  <h3>大白话</h3>
+  <p>给模型不只配了"会读字的脑子",还装上了<strong>眼睛和耳朵</strong>。它能看图、听音、看视频,然后用同一个脑子跟你讨论这些东西。</p>
+  <p>体验:你拍一张菜单的照片问"这家店有没有素食",它能读图回答;你录一段语音问问题,它能听懂直接回;你上传一段视频,它能描述里面发生了什么。<strong>"输入"突破了文字的边界,这就是多模态的核心价值</strong>。</p>
+
+  <h3>核心诀窍:万物皆可向量</h3>
+  <blockquote><strong>把图片、声音也变成和文字 token 同一个空间里的向量</strong>,然后丢进同一个 Transformer 里一起处理。这是 LLM 的"一招吃遍天"——不管原始数据是字、图、音、视频,只要能转成向量,处理流程就完全一样。</blockquote>
+
+  <h3>以图片为例</h3>
+  <ol>
+    <li>把一张图<strong>切成很多小块(patch)</strong>,像切棋盘格——比如 224×224 的图切成 14×14 = 196 个小块。</li>
+    <li>每个小块经过一个"<strong>视觉编码器</strong>"(常用 ViT, Vision Transformer)变成一个向量,维度跟文字 embedding 一样(比如都是 4096 维)。</li>
+    <li>这些"图片 token"(196 个)和你输入的"文字 token"<strong>排成一队,一起喂给 Transformer</strong>。比如你的输入序列变成:[图片1, 图片2, ..., 图片196, "这张图里有什么动物?"]。</li>
+    <li>Transformer 的 Attention 机制让文字 token 能"看到"所有图片 token,从中收集信息——"这张图里有什么动物"这个问题,会通过 Attention 跟图片中包含"动物特征"的 patch 高度关联,从而生成答案。</li>
+  </ol>
+  <p>对模型来说,<strong>图片只是"另一种 token"</strong>。它处理"看图回答"和"读文字回答",本质是同一件事——都是在一串向量上做注意力计算。这就是"万物皆可向量"的威力。</p>
+
+  <h3>声音、视频同理</h3>
+  <ul>
+    <li><strong>声音</strong>:切成短段(比如每 25ms 一段),每段做 Mel 频谱 + 编码器 → 向量序列</li>
+    <li><strong>视频</strong>:每秒抽几帧,每帧当图片处理 + 时间编码 → 向量序列</li>
+  </ul>
+  <p>所有输入最终都变成向量序列,然后串在一起送进 Transformer——这就是为什么 Gemini 1.5 能一次处理几小时视频。</p>
+
+  <h3>两种流派</h3>
+  <ul>
+    <li><strong>原生多模态(native multimodal)</strong>:一开始就用图文音混合数据训练,文字、图像、声音的表示在训练中自然融合到同一个空间——融合得好,跨模态理解更深(典型:Gemini)。</li>
+    <li><strong>后接式(adapter-based)</strong>:在一个已经训好的文本模型上"外挂"一个视觉编码器,通过一个投影层把图片向量对齐到文字向量空间——成本低、训练快,但融合稍弱(典型:早期的 LLaVA、很多开源方案)。</li>
+  </ul>
+  <p>目前旗舰模型都在转向原生多模态——更贵但效果好。</p>
+
+  <h3>价值</h3>
+  <ul>
+    <li><strong>读图表 / 截图 / 票据 / 设计稿</strong>——把屏幕截图发给它就能问"这个报错怎么解决"</li>
+    <li><strong>描述照片 / 风景 / 食物</strong>——盲人辅助、内容审核</li>
+    <li><strong>语音对话</strong>——ChatGPT 语音模式、Siri、智能音箱</li>
+    <li><strong>看视频理解剧情</strong>——Gemini 能看完整部电影做总结</li>
+    <li><strong>OCR + 理解一步到位</strong>——比传统"OCR → 文字 → 理解"两步流程更准确</li>
+    <li><strong>多模态 RAG</strong>——能从图文混排的 PDF 里找答案,不丢失图表信息</li>
+  </ul>
+
+  <h3>关于"输出"</h3>
+  <blockquote>常见的"多模态"主要指<strong>输入端</strong>能接受多种模态。<strong>输出端</strong>大部分还是只输出文字。要让它生成图片、音频,通常要外接专门的生成模块(DALL-E、Imagen、Whisper TTS 等)。GPT-4o、Gemini 2.0 开始尝试"原生输出图像",还在早期阶段。</blockquote>
+
+  <h3>常见误解</h3>
+  <p>"多模态模型 = 看到的就和人一样准确"——错。模型对图像的理解依然有偏差和盲区:小字看不清、复杂图表解读容易出错、空间关系("A 在 B 左边")常错。多模态是巨大进步,但不能盲目信任。</p>
+  `
+},
+
+rag:{
+  tag:'进阶概念', en:'Retrieval-Augmented Generation', tagline:'闭卷考改开卷考——先查再答。',
+  body:`
+  <h3>大白话</h3>
+  <p><strong>闭卷考 vs 开卷考</strong>。普通 LLM 是闭卷考——全凭脑子里记的答(所以会忘最近的事、会瞎编、不知道公司内部资料)。RAG 把它变成<strong>开卷考</strong>:回答前先去资料库翻出相关的几页,然后照着翻到的内容来答。</p>
+  <p>形象点:想象一个超级聪明但只读过 2023 年前公开资料的实习生。你直接问他"我们公司去年 Q3 的财报是啥",他不知道,可能会编;但你递给他一份财报让他读完再答,他就能答得又准又有条理。<strong>RAG 就是给这个聪明实习生递资料的那只手</strong>。</p>
+
+  <h3>原理(把前面好几讲串起来)</h3>
+  <ol>
+    <li><strong>建库(提前做好)</strong>:把你的文档(公司手册、产品文档、知识库、合同……)切成一段段(每段几百到一千字),每段用 embedding 模型转成向量,存进<strong>向量数据库</strong>(Pinecone、Weaviate、Milvus、Qdrant 等)。这一步用到的就是 embedding 那讲的"语义地图"——意思相近的段落,向量位置也相近。</li>
+    <li><strong>检索(提问时)</strong>:用户的问题也转成一个向量,去库里找<strong>向量距离最近</strong>的几段(典型 top 5–10)——这叫<strong>语义搜索(semantic search)</strong>,按"意思"找而不是"关键词"找。所以用户问"怎么退钱"能匹配到写着"退款流程""退货办法"的段落,即使一字不重复。</li>
+    <li><strong>增强 + 生成</strong>:把检索到的几段<strong>塞进 prompt 当资料</strong>:"请根据以下材料回答:[材料1] [材料2] ... 问题:用户的原始问题"。让 LLM 基于这些真实材料作答,并要求标出处。这正是利用了上下文窗口能装下大量信息的特性。</li>
+  </ol>
+
+  <h3>为什么它能解决问题</h3>
+  <ul>
+    <li><strong>治幻觉</strong>:答案是"照着真材料念",不是凭记忆编。这是当前减少幻觉最有效的工程方案。</li>
+    <li><strong>治知识截止 / 接私有知识</strong>:把最新的、或公司内部的资料放进库里就行,<strong>完全不用重训模型</strong>——资料每天可以更新,成本几乎为零。</li>
+    <li><strong>可溯源</strong>:能告诉你这句话出自哪份文档第几段——合规、可审计、可被用户验证。</li>
+    <li><strong>权限可控</strong>:每个用户的查询只在他有权访问的文档里检索,天然做到数据隔离。</li>
+  </ul>
+
+  <h3>RAG vs 微调(常被搞混)</h3>
+  <table>
+    <tr><th></th><th>RAG</th><th>微调(Fine-tuning)</th></tr>
+    <tr><td>本质</td><td>给"开卷参考书"</td><td>把新东西"烤进"参数</td></tr>
+    <tr><td>适合</td><td>让它知道事实、文档、产品信息</td><td>改变它的风格、语气、特定任务格式</td></tr>
+    <tr><td>更新成本</td><td>极低(换文档就行)</td><td>高(每次更新要重训)</td></tr>
+    <tr><td>溯源</td><td>能给出处</td><td>不能</td></tr>
+    <tr><td>典型场景</td><td>企业知识库、客服、医疗法律检索</td><td>特定行业话术、品牌口吻、领域专用模型</td></tr>
+  </table>
+  <blockquote><strong>大多数企业"让 AI 懂我们自己的资料"的需求,首选 RAG,不是微调。</strong>微调的窗口越来越窄——只有极特殊的场景才需要,而且通常和 RAG 配合用,不是替代关系。</blockquote>
+
+  <h3>常见误解</h3>
+  <ul>
+    <li><strong>"RAG 就是把整个文档塞进 prompt"</strong>——错。如果文档不大可以直接塞,但叫不上 RAG;真正的 RAG 是"先检索、只塞最相关的部分",所以即使文档库 TB 级也能用。</li>
+    <li><strong>"上下文窗口够大就不需要 RAG"</strong>——部分对。Gemini 1.5 的 1M 上下文确实能直接装很多文档,但成本(每次推理都贵)、延迟、Lost in the Middle 现象,让 RAG 在大多数场景依然更划算。</li>
+    <li><strong>"上 RAG 就不会幻觉了"</strong>——错。如果检索到的材料无关或错误,LLM 依然会编;甚至给了正确材料,它也可能"过度推断"超出材料范围。</li>
+  </ul>
+
+  <h3>短板</h3>
+  <p>成败全看检索准不准——<strong>检索到垃圾,答案就是垃圾(Garbage In, Garbage Out)</strong>。RAG 工程的核心功夫不在"接 LLM",而在:</p>
+  <ul>
+    <li>怎么把文档切段(chunking 策略,太长丢失精度,太短丢失上下文)</li>
+    <li>用什么 embedding 模型(中文场景要选中文友好的)</li>
+    <li>检索后怎么排序(re-ranking 用更强的小模型重排)</li>
+    <li>怎么处理混合检索(向量搜索 + 关键词搜索结合)</li>
+    <li>怎么评估检索质量(命中率、相关性指标)</li>
+  </ul>
+  <p>所以"做一个 RAG 系统 Demo"用 LangChain 几小时就能搭出来,但"做一个生产可用、效果好的 RAG"是几个月的工程活。</p>
+  `
+},
+
+/* ---------- 模型家族 ---------- */
+'b-family':{
+  tag:'分支', en:'Model Families', tagline:'怎么挑、怎么用——不要按"谁最强"记,按维度理解。',
+  body:`
+  <h3>这一支讲什么</h3>
+  <p>前面所有支都讲<strong>概念</strong>——技术原理、能力边界。这一支讲<strong>实践</strong>——市面上有这么多模型,我该怎么选?</p>
+  <p>它分三节:</p>
+  <ol>
+    <li><strong>9 大主流家族</strong>:鸟瞰当前主流玩家,知道谁是谁、各自优势在哪</li>
+    <li><strong>7 个判断维度</strong>:别记榜单,记维度——开源 / 规模 / 推理 / 多模态 / 上下文 / 价格 / 生态</li>
+    <li><strong>场景 → 选谁</strong>:常见需求对应推荐(实战指南)</li>
+  </ol>
+
+  <h3>核心心智:别迷信"最强模型"</h3>
+  <blockquote>实际产品里<strong>几乎没人"只用一个模型"</strong>——而是按任务难度混搭:简单活儿用便宜的轻量档(Haiku、Flash),难活儿才上旗舰推理模型(o3、Opus),要看图调多模态(Gemini、GPT-4o),数据敏感切开源自部署(Llama、Qwen)。<br><br><strong>会"调度模型"比"迷信某一个最强模型"重要得多。</strong>这是 2025-2026 年成熟 AI 团队的共识。</blockquote>
+
+  <h3>顺嘴提醒:版本号变化极快</h3>
+  <p>大模型行业版本号迭代非常快——每 3-6 个月就有新一代。所以:</p>
+  <ul>
+    <li>记<strong>家族定位</strong>和<strong>取舍方式</strong>,比记"GPT-X.X"或"Claude X.X"重要得多</li>
+    <li>具体选型时去看最新榜单(Chatbot Arena、Artificial Analysis 等)</li>
+    <li>本知识地图的具体数字会过时,但"看维度而非看名字"的思路不会过时</li>
+  </ul>`
+},
+
+families:{
+  tag:'模型家族', en:'9 Major Families', tagline:'2026 年初主流 LLM 家族鸟瞰。',
+  body:`
+  <h3>9 大家族总表</h3>
+  <table>
+    <tr><th>家族</th><th>定位</th><th>突出优势</th></tr>
+    <tr><td><strong>OpenAI</strong><br>GPT-5 / o 系列</td><td>闭源旗舰</td><td>生态最大、最通用,英文最强,品牌效应深</td></tr>
+    <tr><td><strong>Anthropic Claude</strong><br>Opus / Sonnet / Haiku 4.x</td><td>闭源,三档分明</td><td>代码 / 长文 / 安全见长,企业 B 端首选</td></tr>
+    <tr><td><strong>Google Gemini</strong><br>Pro / Flash</td><td>闭源,多档</td><td>原生多模态最强,上下文最长(1M-2M),Flash 极便宜</td></tr>
+    <tr><td><strong>xAI Grok</strong><br>3 / 4</td><td>闭源</td><td>绑 X(推特),实时性强,口无遮拦</td></tr>
+    <tr><td><strong>Meta Llama 4</strong></td><td><strong>开放权重</strong>,开源标杆</td><td>开源生态地基,几乎所有开源模型都基于它做衍生,Llama 4 Scout 号称 10M 上下文</td></tr>
+    <tr><td><strong>DeepSeek</strong><br>V3 / R1</td><td><strong>开放权重</strong>,MoE</td><td>R1 是推理模型代表,极便宜(性价比之王),中文强,2025 年初引爆全球关注</td></tr>
+    <tr><td><strong>阿里 Qwen 3</strong></td><td><strong>开放权重</strong>,开源最全</td><td>0.5B → 235B 多尺寸,从手机能跑到旗舰级,中文强,社区繁荣</td></tr>
+    <tr><td><strong>Mistral</strong>(法国)</td><td>开源 + 闭源</td><td>欧洲合规(GDPR),小而精,Mixtral 8×7B 早期 MoE 代表作</td></tr>
+    <tr><td><strong>中国其他</strong><br>智谱GLM / Kimi / 豆包 / 文心 / MiniMax</td><td>混合</td><td>中文最强、本土合规;Kimi 超长上下文领跑;豆包 To C 流量大</td></tr>
+  </table>
+
+  <h3>四大主线</h3>
+  <ol>
+    <li><strong>美国闭源旗舰三巨头</strong>:OpenAI / Anthropic / Google——通用能力第一梯队,做 API、做产品。</li>
+    <li><strong>开源/开放权重阵营</strong>:Meta Llama / DeepSeek / 阿里 Qwen / Mistral——能下载权重、能本地部署,可控数据。</li>
+    <li><strong>差异化挑战者</strong>:xAI Grok(实时数据/带 X 平台)、Perplexity(搜索+模型一体)。</li>
+    <li><strong>中国军团</strong>:中文/合规优势,大模型百花齐放,内部竞争激烈。</li>
+  </ol>
+
+  <h3>读这张表的几个要点</h3>
+  <ul>
+    <li><strong>"闭源 vs 开源"是首要分水岭</strong>。决定你能不能下载权重、能不能在自己机器上跑、数据出不出去。</li>
+    <li><strong>每个旗舰家族都有"档位"</strong>——大、中、小三档,价格和速度差几倍到几十倍。别只看旗舰,实际产品里中小档用得最多。</li>
+    <li><strong>每家都在追"推理模型"</strong>——OpenAI 的 o 系列、Anthropic 的 extended thinking、Gemini 的 thinking、DeepSeek-R1、Qwen 的 QwQ。这是 2025 年的共同方向。</li>
+    <li><strong>开源不等于免费</strong>——开源指"权重公开",但部署还是要花算力钱。"用开源模型省钱"通常指中型企业自有服务器场景。</li>
+  </ul>
+
+  <blockquote>⚠️ 版本号迭代极快(本表截至 2026 年初)。<strong>记家族定位和取舍方式,比记具体版本号有用得多</strong>——具体选型时去 Chatbot Arena、Artificial Analysis 看最新榜单。</blockquote>
+  `
+},
+
+dimensions:{
+  tag:'模型家族', en:'7 Comparison Dimensions', tagline:'按维度看模型,远比按"谁最强"看靠谱。',
+  body:`
+  <h3>为什么按维度看</h3>
+  <p>每隔半年就有"新一代王者诞生"的新闻,但具体到你的场景未必合适。<strong>"哪个最强"是错误问题,"哪个最适合我"才是对的问题</strong>——而后者必须按维度拆解。</p>
+
+  <h3>7 个核心维度</h3>
+  <table>
+    <tr><th>维度</th><th>两端</th><th>说明</th></tr>
+    <tr><td><strong>开源 vs 闭源</strong></td><td>开放权重 / 仅 API</td><td>闭源(GPT、Claude、Gemini)通常更强更省心,但数据出去、按 token 付费;开源(Llama、Qwen、DeepSeek)可私有部署、可控、保数据,但要自己运维 + 显卡成本</td></tr>
+    <tr><td><strong>规模</strong></td><td>小(手机能跑,1-7B)vs 超大(数百 B 到万亿)</td><td>大的更聪明但更慢更贵;小的够用且便宜。Phi/Gemma 在 3-7B 区间已经很能打</td></tr>
+    <tr><td><strong>是否推理模型</strong></td><td>标准(秒答)vs 推理(先思维链再答)</td><td>推理模型擅长数学 / 编程 / 逻辑,但慢、贵;闲聊用不上,反而拖累体验</td></tr>
+    <tr><td><strong>多模态</strong></td><td>纯文本 vs 文+图+音+视频</td><td>看你要不要处理图片、语音、视频。Gemini 全模态最强,Claude 能看图但不生成音视频</td></tr>
+    <tr><td><strong>上下文长度</strong></td><td>几万 vs 百万 token</td><td>处理长文档、整个代码库时差别巨大。但要警惕"声称长度 vs 实际可用长度"的差距(Lost in the Middle)</td></tr>
+    <tr><td><strong>价格 / 速度</strong></td><td>旗舰贵 vs 轻量便宜快</td><td>每千 token 价格可能差 100 倍。实际产品里常按任务难度混用不同档</td></tr>
+    <tr><td><strong>生态 / 语言</strong></td><td>英文强 vs 中文强、绑哪家生态</td><td>中文场景选 DeepSeek/Qwen/Kimi;Microsoft 生态优先 OpenAI;Google 生态优先 Gemini;Apple 装的本地模型小但隐私好</td></tr>
+  </table>
+
+  <h3>读表的几个要点</h3>
+  <ol>
+    <li><strong>开源 vs 闭源阵营划分</strong>:
+      <ul>
+        <li>开源阵营 = Llama / DeepSeek / Qwen / Mistral / Gemma(以及无数微调衍生版)</li>
+        <li>闭源旗舰 = OpenAI / Claude / Gemini / Grok</li>
+        <li>中国厂商两边都有,常以开源换市场份额</li>
+      </ul>
+    </li>
+    <li><strong>上下文最长第一梯队</strong>:Gemini(1–2M)、Llama 4(号称 10M)、Kimi。大部分日常使用 128k 已经够用,1M+ 主要给"整本书 / 整代码库"场景。</li>
+    <li><strong>推理模型几乎人手一个</strong>:起家代表 OpenAI o 系列 和 DeepSeek-R1;Claude / Gemini / Qwen 都有自己的推理模式。趋势是<strong>混合模式</strong>——同一个模型自动决定"该秒答还是该思考",体验更平滑。</li>
+    <li><strong>多模态最全</strong>:Gemini 和 Qwen-Omni(连视频音频输入输出都吃);Claude 能看图、不生成音视频;OpenAI 的 GPT-4o 在语音对话方面最自然。</li>
+    <li><strong>价格震荡剧烈</strong>:DeepSeek 2024 年底把推理模型价格打到 GPT-o1 的 1/30,迫使全行业降价。Gemini Flash 系列在轻量档持续保持极低单价。</li>
+  </ol>
+
+  <h3>实战提示:别陷入"完美主义"</h3>
+  <blockquote>选型时不要追求"在所有维度上最强"——这种模型不存在,而且也没必要。<strong>列出你具体场景的 2-3 个关键维度,在这几个维度上做出选择就行</strong>。比如做 to B 长文档分析:核心维度是 上下文长度 + 准确度 + 可溯源 → Claude / Gemini Pro。比如做高频低成本客服:核心是 价格 + TPS + 中文 → DeepSeek / Qwen / Gemini Flash。</blockquote>
+  `
+},
+
+scenarios:{
+  tag:'模型家族', en:'Scenario → Pick', tagline:'8 种典型需求 → 推荐模型(实战指南)。',
+  body:`
+  <h3>8 种典型场景 → 推荐</h3>
+  <table>
+    <tr><th>你的需求</th><th>优先考虑</th><th>理由</th></tr>
+    <tr><td>写代码 / 长文档 / 严谨任务</td><td>Claude(Sonnet/Opus)、GPT-5、Gemini Pro</td><td>代码与长文本质量第一梯队;Claude 在企业代码场景几乎是默认选择</td></tr>
+    <tr><td>数学 / 编程 / 复杂逻辑 / 学术研究</td><td>OpenAI o 系列、DeepSeek-R1、Gemini(开 thinking)</td><td>推理模型才扛得住;闲聊不要用,贵且慢</td></tr>
+    <tr><td>处理图片 / 视频 / 语音</td><td>Gemini、Qwen-Omni、GPT-4o</td><td>多模态最全;Gemini 看视频领跑,GPT-4o 语音对话最自然</td></tr>
+    <tr><td>超长文档(整本书 / 代码库 / 长会议纪要)</td><td>Gemini(1-2M)、Llama 4、Kimi</td><td>上下文窗口碾压;但记得测一下中间信息能不能用</td></tr>
+    <tr><td>要私有部署 / 数据不能外传(医疗、金融、政府)</td><td>Llama、Qwen、DeepSeek、Mistral</td><td>开放权重,可本地跑;但要算清楚自有 GPU 总成本</td></tr>
+    <tr><td>极致性价比 / 高频低价值任务</td><td>DeepSeek、Gemini Flash、Qwen(各档)</td><td>单价极低,百万 token 不到 1 美元;适合分类、抽取、客服一类大流量任务</td></tr>
+    <tr><td>中文场景 / 国内合规</td><td>DeepSeek、Qwen、豆包、文心、Kimi、智谱 GLM</td><td>中文表达、本土文化、合规备案</td></tr>
+    <tr><td>要快、要便宜的轻任务(辅助、自动补全)</td><td>Claude Haiku、Gemini Flash、GPT-4o mini</td><td>轻量档,TPS 高、延迟低、价格极低</td></tr>
+  </table>
+
+  <h3>多模型混用的典型架构</h3>
+  <p>一个真实产品里常见的"模型调度"思路:</p>
+  <ol>
+    <li><strong>路由判断</strong>:用一个便宜的小模型(GPT-4o mini / Haiku)先判断"这个请求属于哪类任务"</li>
+    <li><strong>简单任务</strong> → 走轻量档(Haiku / Flash / mini),便宜快速</li>
+    <li><strong>复杂任务</strong> → 走旗舰模型(Sonnet / GPT-5 / Gemini Pro)</li>
+    <li><strong>需要严谨推理</strong> → 走推理模型(o3 / R1 / Claude extended thinking)</li>
+    <li><strong>需要查私有资料</strong> → 加上 RAG</li>
+    <li><strong>需要实时数据</strong> → 加上联网搜索</li>
+  </ol>
+  <p>这种分层架构能把成本压到只用旗舰模型的 1/5–1/10,但用户体验几乎没差。</p>
+
+  <h3>常见踩坑</h3>
+  <ul>
+    <li><strong>"我就用最强的"</strong> → 月底账单爆炸。旗舰模型干轻任务等于用法拉利拉货。</li>
+    <li><strong>"开源一定省钱"</strong> → 算上 GPU 成本、运维、显存占用、专家工资,中小用量下 API 反而便宜。</li>
+    <li><strong>"推理模型一定更好"</strong> → 推理模型在闲聊、翻译、简单问答上反而更差(过度思考)。</li>
+    <li><strong>"上下文越长越好"</strong> → 注意 Lost in the Middle,以及超长上下文的延迟和成本。</li>
+    <li><strong>"一直用同一个模型"</strong> → 错失更便宜/更适合的选项,且容易被绑定。</li>
+  </ul>
+
+  <blockquote><strong>一句话收尾</strong>:实际产品里几乎没人"只用一个模型"——而是<strong>按任务难度混搭</strong>。<strong>会"调度模型"比"迷信某一个最强模型"重要得多</strong>。把"选哪个模型"当作产品设计的一部分,而不是 IT 选型,才能在 2026 年的 AI 应用竞争里跑得长远。</blockquote>
+  `
+},
+
+};
+
+/* ============================================================
+   5. 抽屉交互
+   ============================================================ */
+const drawer = document.getElementById('drawer');
+const mask = document.getElementById('mask');
+const dTag = document.getElementById('d-tag');
+const dTitle = document.getElementById('d-title');
+const dEn = document.getElementById('d-en');
+const dTagline = document.getElementById('d-tagline');
+const dBody = document.getElementById('d-body');
+
+function openDetail(id){
+  const d = DETAILS[id];
+  if(!d) return;
+  dTag.textContent = d.tag;
+  dTitle.textContent = (Object.values({...tree, branches:null}).find(n=>n&&n.id===id) || flatFindTitle(id) || id);
+  dEn.textContent = d.en || '';
+  dTagline.textContent = d.tagline || '';
+  dBody.innerHTML = d.body;
+  dBody.scrollTop = 0;
+  drawer.classList.add('open');
+  mask.classList.add('open');
+}
+function flatFindTitle(id){
+  if(tree.root.id===id) return tree.root.title;
+  for(const b of tree.branches){
+    if(b.id===id) return b.title;
+    for(const c of b.children) if(c.id===id) return c.title;
+  }
+  return null;
+}
+function closeDetail(){ drawer.classList.remove('open'); mask.classList.remove('open'); }
+document.getElementById('d-close').addEventListener('click', closeDetail);
+mask.addEventListener('click', closeDetail);
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeDetail(); });
+
+// override title fill with simpler lookup
+function realOpen(id){
+  const d = DETAILS[id]; if(!d) return;
+  dTag.textContent = d.tag;
+  dTitle.textContent = flatFindTitle(id) || id;
+  dEn.textContent = d.en || '';
+  dTagline.textContent = d.tagline || '';
+  dBody.innerHTML = d.body;
+  dBody.scrollTop = 0;
+  drawer.classList.add('open');
+  mask.classList.add('open');
+  markRead(id, true);   // 自动标已读
+}
+window.openDetail = realOpen;
+
+/* ============================================================
+   6. 进度勾选 + 搜索高亮
+   ============================================================ */
+const allIds = (() => {
+  const ids = [tree.root.id];
+  tree.branches.forEach(b => { ids.push(b.id); b.children.forEach(c => ids.push(c.id)); });
+  return ids;
+})();
+const TOTAL = allIds.length;
+
+function saveProgress(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([...progress]));
+  updateProgressUI();
+}
+function updateProgressUI(){
+  const el = document.getElementById('progress-count');
+  if(el) el.textContent = `已读 ${progress.size}/${TOTAL}`;
+}
+function markRead(id, state){
+  if(state) progress.add(id); else progress.delete(id);
+  const el = document.querySelector(`.node[data-id="${id}"]`);
+  if(el) el.classList.toggle('read', state);
+  saveProgress();
+}
+function flatFindShort(id){
+  if(tree.root.id===id) return tree.root.short;
+  for(const b of tree.branches){
+    if(b.id===id) return b.short;
+    for(const c of b.children) if(c.id===id) return c.short;
+  }
+  return null;
+}
+
+const searchInput = document.getElementById('search');
+if(searchInput){
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    const all = document.querySelectorAll('.node');
+    if(!q){ all.forEach(n => n.classList.remove('dim','match')); return; }
+    all.forEach(n => {
+      const id = n.dataset.id;
+      const title = (flatFindTitle(id) || '').toLowerCase();
+      const short = (flatFindShort(id) || '').toLowerCase();
+      const en = (DETAILS[id]?.en || '').toLowerCase();
+      const tagline = (DETAILS[id]?.tagline || '').toLowerCase();
+      const body = (DETAILS[id]?.body || '').toLowerCase().replace(/<[^>]+>/g,'');
+      const hit = title.includes(q) || short.includes(q) || en.includes(q)
+               || tagline.includes(q) || body.includes(q);
+      n.classList.toggle('match', hit);
+      n.classList.toggle('dim', !hit);
+    });
+  });
+}
+
+const resetBtn = document.getElementById('reset-progress');
+if(resetBtn){
+  resetBtn.addEventListener('click', () => {
+    if(!confirm('确定清空所有"已读"标记?')) return;
+    progress.clear();
+    document.querySelectorAll('.node.read').forEach(n => n.classList.remove('read'));
+    saveProgress();
+  });
+}
+
+updateProgressUI();
+
+/* ============================================================
+   7. State + Storage（高亮 + 笔记）
+   ============================================================ */
+const DATA_KEY = 'llm-map-data-v1';
+const SYNC_KEY = 'llm-map-sync-v1';
+const DEVICE_KEY = 'llm-map-device-v1';
+const SCHEMA_VERSION = 1;
+const TOMBSTONE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function newDeviceId(){
+  let d = localStorage.getItem(DEVICE_KEY);
+  if(!d){ d = 'dev_' + Math.random().toString(36).slice(2,10); localStorage.setItem(DEVICE_KEY, d); }
+  return d;
+}
+function emptyState(){
+  return { nodes:{}, meta:{ schemaVersion:SCHEMA_VERSION, lastLocalChangeAt:0, deviceId:newDeviceId() } };
+}
+function loadStateFromLocal(){
+  try{
+    const raw = localStorage.getItem(DATA_KEY);
+    if(!raw) return emptyState();
+    const s = JSON.parse(raw);
+    if(!s.meta) s.meta = { schemaVersion:SCHEMA_VERSION, lastLocalChangeAt:0, deviceId:newDeviceId() };
+    if(!s.nodes) s.nodes = {};
+    return s;
+  }catch(e){ console.warn('STATE load failed', e); return emptyState(); }
+}
+let STATE = loadStateFromLocal();
+
+let saveTimer = null;
+function saveStateToLocal(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{
+    localStorage.setItem(DATA_KEY, JSON.stringify(STATE));
+  }, 80);
+}
+function ensureNodeState(id){
+  if(!STATE.nodes[id]) STATE.nodes[id] = { highlights:[], notepad:null };
+  if(!STATE.nodes[id].highlights) STATE.nodes[id].highlights = [];
+  return STATE.nodes[id];
+}
+function touch(){
+  STATE.meta.lastLocalChangeAt = Date.now();
+  saveStateToLocal();
+  scheduleSync();
+}
+
+/* ============================================================
+   8. Highlight engine（锚定 / 回放 / 删除）
+   ============================================================ */
+let currentOpenId = null;
+
+function hash32(s){
+  let h = 5381;
+  for(let i=0;i<s.length;i++) h = ((h<<5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+function newHlId(){
+  return 'h_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6);
+}
+function isContentBlock(el){
+  return el && el.nodeType === 1 && !el.classList.contains('notepad-wrap');
+}
+function contentBlocks(){
+  return Array.from(dBody.children).filter(isContentBlock);
+}
+
+// pre-order DFS of text nodes inside `root`
+function* textNodesIn(root){
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+  let n; while((n = walker.nextNode())) yield n;
+}
+// Compute char offset within `block.textContent` for (container, offsetInContainer)
+function textOffsetWithinBlock(block, container, offsetInContainer){
+  if(container.nodeType === 3){
+    // text node: sum lengths of prior text nodes
+    let acc = 0;
+    for(const tn of textNodesIn(block)){
+      if(tn === container) return acc + offsetInContainer;
+      acc += tn.nodeValue.length;
+    }
+    return acc;
+  }else{
+    // element: offset is index into childNodes; we sum textContent before that child
+    let acc = 0;
+    const childrenBefore = Array.from(container.childNodes).slice(0, offsetInContainer);
+    // Walk text nodes inside `block` until we reach the boundary point
+    // Simpler: build a range from block start to (container, offsetInContainer) and read its text
+    try{
+      const r = document.createRange();
+      r.setStart(block, 0);
+      r.setEnd(container, offsetInContainer);
+      return r.toString().length;
+    }catch(e){ return 0; }
+  }
+}
+
+function captureSelectionAnchor(){
+  const sel = window.getSelection();
+  if(!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+  if(!dBody.contains(range.commonAncestorContainer)) return null;
+
+  // climb up to direct child of dBody
+  let block = range.commonAncestorContainer;
+  if(block.nodeType === 3) block = block.parentNode;
+  while(block && block.parentNode !== dBody){
+    block = block.parentNode;
+  }
+  if(!block || !isContentBlock(block)) return null;
+
+  const blocks = contentBlocks();
+  const blockIdx = blocks.indexOf(block);
+  if(blockIdx < 0) return null;
+
+  let startOffset = textOffsetWithinBlock(block, range.startContainer, range.startOffset);
+  let endOffset   = textOffsetWithinBlock(block, range.endContainer,   range.endOffset);
+  if(startOffset > endOffset){ const t = startOffset; startOffset = endOffset; endOffset = t; }
+  if(endOffset - startOffset < 1) return null;
+
+  const fullText = block.textContent;
+  const quote = fullText.slice(startOffset, endOffset);
+  if(!quote.trim()) return null;
+
+  return {
+    blockIdx, blockTag: block.tagName, textHash: hash32(fullText),
+    startOffset, endOffset, quote
+  };
+}
+
+function resolveBlock(blocks, h){
+  const b = blocks[h.blockIdx];
+  if(b && b.tagName === h.blockTag && hash32(b.textContent) === h.textHash) return b;
+  // fallback 1: same tag + hash anywhere
+  const m1 = blocks.find(x => x.tagName === h.blockTag && hash32(x.textContent) === h.textHash);
+  if(m1) return m1;
+  // fallback 2: any block containing the quote
+  const m2 = blocks.find(x => x.textContent.indexOf(h.quote) >= 0);
+  return m2 || null;
+}
+
+// Walk text nodes of `block`, when cumulative offset crosses [start, end]
+// split text nodes and wrap each slice in <mark>
+function wrapRangeInBlock(block, start, end, h){
+  let acc = 0;
+  // Collect first to avoid mutating during iteration
+  const tns = Array.from(textNodesIn(block));
+  for(const tn of tns){
+    if(!tn.parentNode) continue;     // already detached during a previous wrap
+    const len = tn.nodeValue.length;
+    const tnStart = acc;
+    const tnEnd = acc + len;
+    acc = tnEnd;
+    if(tnEnd <= start) continue;
+    if(tnStart >= end) break;
+    const a = Math.max(start, tnStart) - tnStart;
+    const b = Math.min(end,   tnEnd)   - tnStart;
+    if(b <= a) continue;
+    // split
+    let middle = tn;
+    if(a > 0) middle = middle.splitText(a);
+    if(b - a < middle.nodeValue.length) middle.splitText(b - a);
+    const mark = document.createElement('mark');
+    mark.className = 'hl hl-' + h.color;
+    mark.dataset.hlId = h.id;
+    if(h.note){ mark.classList.add('has-note'); mark.title = h.note; }
+    middle.parentNode.insertBefore(mark, middle);
+    mark.appendChild(middle);
+  }
+}
+
+function renderHighlightsForCurrentNode(id){
+  const ns = STATE.nodes[id];
+  if(!ns || !ns.highlights || !ns.highlights.length) return;
+  const blocks = contentBlocks();
+  const active = ns.highlights.filter(h => !h.deleted);
+  // Sort: by blockIdx ASC, then endOffset DESC so wrapping later items first doesn't shift earlier ones
+  active.slice().sort((a,b) => (a.blockIdx - b.blockIdx) || (b.endOffset - a.endOffset))
+    .forEach(h => {
+      const block = resolveBlock(blocks, h);
+      if(!block){ console.warn('highlight anchor lost', h.id, h.quote); return; }
+      try{ wrapRangeInBlock(block, h.startOffset, h.endOffset, h); }
+      catch(e){ console.warn('wrap failed', h.id, e); }
+    });
+}
+
+function removeHighlight(id){
+  if(!currentOpenId) return;
+  const ns = ensureNodeState(currentOpenId);
+  const h = ns.highlights.find(x => x.id === id);
+  if(!h) return;
+  h.deleted = true; h.updatedAt = Date.now();
+  // unwrap from DOM
+  document.querySelectorAll(`mark.hl[data-hl-id="${id}"]`).forEach(m => {
+    const parent = m.parentNode;
+    while(m.firstChild) parent.insertBefore(m.firstChild, m);
+    parent.removeChild(m);
+    parent.normalize();
+  });
+  touch();
+}
+
+function updateHighlightNote(id, note){
+  if(!currentOpenId) return;
+  const ns = ensureNodeState(currentOpenId);
+  const h = ns.highlights.find(x => x.id === id);
+  if(!h) return;
+  h.note = note || '';
+  h.updatedAt = Date.now();
+  document.querySelectorAll(`mark.hl[data-hl-id="${id}"]`).forEach(m => {
+    m.classList.toggle('has-note', !!h.note);
+    if(h.note) m.title = h.note; else m.removeAttribute('title');
+  });
+  touch();
+}
+
+function createHighlight(color){
+  if(!currentOpenId) return;
+  const anchor = captureSelectionAnchor();
+  if(!anchor) return;
+  const now = Date.now();
+  const h = {
+    id: newHlId(),
+    color,
+    blockIdx: anchor.blockIdx,
+    blockTag: anchor.blockTag,
+    textHash: anchor.textHash,
+    startOffset: anchor.startOffset,
+    endOffset: anchor.endOffset,
+    quote: anchor.quote,
+    note: '',
+    deleted: false,
+    createdAt: now,
+    updatedAt: now
+  };
+  const ns = ensureNodeState(currentOpenId);
+  ns.highlights.push(h);
+  // Wrap immediately
+  const blocks = contentBlocks();
+  const block = resolveBlock(blocks, h);
+  if(block){
+    try{ wrapRangeInBlock(block, h.startOffset, h.endOffset, h); }
+    catch(e){ console.warn('initial wrap failed', e); }
+  }
+  // clear browser selection so toolbar dismisses
+  const sel = window.getSelection(); if(sel) sel.removeAllRanges();
+  hideToolbar();
+  touch();
+}
+
+/* ============================================================
+   9. Highlight UI（选区工具条 + 笔记 popover）
+   ============================================================ */
+const hlToolbar = document.getElementById('hl-toolbar');
+const hlPopover = document.getElementById('hl-popover');
+const hlNoteInput = document.getElementById('hl-note-input');
+const hlRemoveBtn = document.getElementById('hl-remove');
+const hlPopCloseBtn = document.getElementById('hl-pop-close');
+let activePopoverHlId = null;
+
+function hideToolbar(){ hlToolbar.classList.remove('open'); }
+function hidePopover(){
+  if(activePopoverHlId){
+    // commit any pending note edit
+    updateHighlightNote(activePopoverHlId, hlNoteInput.value.trim());
+  }
+  hlPopover.classList.remove('open');
+  activePopoverHlId = null;
+}
+
+function showToolbarForSelection(){
+  const sel = window.getSelection();
+  if(!sel || sel.isCollapsed || sel.rangeCount === 0){ hideToolbar(); return; }
+  const range = sel.getRangeAt(0);
+  if(!dBody.contains(range.commonAncestorContainer)){ hideToolbar(); return; }
+  // skip if selection is inside a textarea (notepad/popover)
+  if(range.commonAncestorContainer.nodeType === 1 &&
+     range.commonAncestorContainer.closest('.notepad-wrap, .hl-popover')){ hideToolbar(); return; }
+  const rect = range.getBoundingClientRect();
+  if(rect.width === 0 && rect.height === 0){ hideToolbar(); return; }
+  hlToolbar.classList.add('open');
+  const tw = hlToolbar.offsetWidth || 110;
+  const left = window.scrollX + Math.max(8, rect.left + rect.width/2 - tw/2);
+  const top  = window.scrollY + rect.top - hlToolbar.offsetHeight - 8;
+  hlToolbar.style.left = left + 'px';
+  hlToolbar.style.top  = (top < window.scrollY + 4 ? window.scrollY + rect.bottom + 8 : top) + 'px';
+}
+
+function showPopoverForMark(mark){
+  const id = mark.dataset.hlId;
+  if(!id || !currentOpenId) return;
+  const ns = ensureNodeState(currentOpenId);
+  const h = ns.highlights.find(x => x.id === id);
+  if(!h) return;
+  activePopoverHlId = id;
+  hlNoteInput.value = h.note || '';
+  hlPopover.classList.add('open');
+  const rect = mark.getBoundingClientRect();
+  const pw = hlPopover.offsetWidth || 260;
+  let left = window.scrollX + rect.left;
+  if(left + pw > window.scrollX + window.innerWidth - 12) left = window.scrollX + window.innerWidth - pw - 12;
+  const top = window.scrollY + rect.bottom + 6;
+  hlPopover.style.left = left + 'px';
+  hlPopover.style.top  = top + 'px';
+  setTimeout(()=>hlNoteInput.focus(), 30);
+}
+
+// selection toolbar triggers
+dBody.addEventListener('mouseup', () => setTimeout(showToolbarForSelection, 0));
+dBody.addEventListener('keyup', e => {
+  if(e.shiftKey || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')
+    setTimeout(showToolbarForSelection, 0);
+});
+
+// toolbar buttons
+hlToolbar.addEventListener('mousedown', e => e.preventDefault()); // keep selection
+hlToolbar.querySelectorAll('.hl-btn').forEach(btn => {
+  btn.addEventListener('click', () => createHighlight(btn.dataset.color));
+});
+
+// click existing mark → popover
+dBody.addEventListener('click', e => {
+  const mark = e.target.closest('mark.hl');
+  if(mark){ e.stopPropagation(); showPopoverForMark(mark); }
+});
+
+// popover controls
+hlRemoveBtn.addEventListener('click', () => {
+  if(activePopoverHlId){
+    const id = activePopoverHlId;
+    activePopoverHlId = null;       // skip commit-on-hide
+    hlPopover.classList.remove('open');
+    removeHighlight(id);
+  }
+});
+hlPopCloseBtn.addEventListener('click', hidePopover);
+hlNoteInput.addEventListener('input', () => {
+  if(activePopoverHlId) updateHighlightNote(activePopoverHlId, hlNoteInput.value);
+});
+
+// dismiss toolbar/popover on outside click
+document.addEventListener('mousedown', e => {
+  if(!hlToolbar.contains(e.target) && (!window.getSelection() || window.getSelection().isCollapsed))
+    hideToolbar();
+  if(!hlPopover.contains(e.target) && !e.target.closest('mark.hl'))
+    hidePopover();
+});
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape'){ hideToolbar(); hidePopover(); }
+});
+
+/* ============================================================
+   10. Notepad（drawer 底部整体笔记本）
+   ============================================================ */
+let notepadSaveTimer = null;
+function injectNotepadUI(id){
+  const wrap = document.createElement('div');
+  wrap.className = 'notepad-wrap';
+  wrap.innerHTML = `
+    <h3>📝 笔记本</h3>
+    <textarea id="notepad-${id}" placeholder="写下你对这个概念的整体心得、问题、关联…"></textarea>
+    <div class="notepad-meta" id="notepad-meta-${id}"></div>
+  `;
+  dBody.appendChild(wrap);
+  const ta = wrap.querySelector('textarea');
+  const meta = wrap.querySelector('.notepad-meta');
+  const ns = ensureNodeState(id);
+  if(ns.notepad){
+    ta.value = ns.notepad.text || '';
+    meta.textContent = ns.notepad.updatedAt ? '上次保存 ' + formatTime(ns.notepad.updatedAt) : '';
+  }
+  ta.addEventListener('input', () => {
+    clearTimeout(notepadSaveTimer);
+    notepadSaveTimer = setTimeout(() => commitNotepad(id, ta.value, meta), 600);
+  });
+  ta.addEventListener('blur', () => commitNotepad(id, ta.value, meta));
+}
+function commitNotepad(id, text, metaEl){
+  const ns = ensureNodeState(id);
+  const prev = ns.notepad ? (ns.notepad.text || '') : '';
+  if(text === prev) return;
+  if(!text && !ns.notepad) return;
+  ns.notepad = { text, updatedAt: Date.now() };
+  if(metaEl) metaEl.textContent = '已保存 ' + formatTime(ns.notepad.updatedAt);
+  touch();
+}
+function flushNotepad(){
+  if(!currentOpenId) return;
+  const ta = document.getElementById('notepad-' + currentOpenId);
+  if(!ta) return;
+  const meta = document.getElementById('notepad-meta-' + currentOpenId);
+  commitNotepad(currentOpenId, ta.value, meta);
+}
+function formatTime(ts){
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/* ============================================================
+   11. Sync · GitHub Gist
+   ============================================================ */
+const GIST_FILENAME_DEFAULT = 'llm-map-data.json';
+let cfg = (() => {
+  try{ return JSON.parse(localStorage.getItem(SYNC_KEY) || '{}'); }
+  catch(e){ return {}; }
+})();
+function saveCfg(){ localStorage.setItem(SYNC_KEY, JSON.stringify(cfg)); }
+
+const syncDot = document.getElementById('sync-dot');
+function setStatus(s, msg){
+  syncDot.classList.remove('local','synced','syncing','error');
+  syncDot.classList.add(s);
+  const map = { local:'仅本地存储', synced:'已同步', syncing:'正在同步…', error:'同步失败' };
+  let tip = map[s] || s;
+  if(s === 'synced' && cfg.lastFetchedAt) tip += ' · ' + formatTime(cfg.lastFetchedAt);
+  if(msg) tip += '\n' + msg;
+  syncDot.title = tip;
+}
+
+function mergeStates(local, remote){
+  if(!remote || !remote.nodes) return local;
+  const out = JSON.parse(JSON.stringify(local));
+  for(const nid of Object.keys(remote.nodes)){
+    const rn = remote.nodes[nid] || {};
+    if(!out.nodes[nid]) out.nodes[nid] = { highlights:[], notepad:null };
+    const ln = out.nodes[nid];
+    // notepad LWW
+    if(rn.notepad){
+      if(!ln.notepad || (rn.notepad.updatedAt || 0) > (ln.notepad.updatedAt || 0))
+        ln.notepad = rn.notepad;
+    }
+    // highlights: union by id, LWW per record
+    const byId = {};
+    (ln.highlights || []).forEach(h => byId[h.id] = h);
+    (rn.highlights || []).forEach(h => {
+      const ex = byId[h.id];
+      if(!ex || (h.updatedAt || 0) > (ex.updatedAt || 0)) byId[h.id] = h;
+    });
+    // GC very old tombstones
+    const cutoff = Date.now() - TOMBSTONE_TTL_MS;
+    ln.highlights = Object.values(byId).filter(h => !(h.deleted && (h.updatedAt || 0) < cutoff));
+  }
+  // bump local change marker conservatively
+  out.meta = out.meta || {};
+  out.meta.schemaVersion = SCHEMA_VERSION;
+  return out;
+}
+
+let syncTimer = null;
+let syncing = false;
+let pendingChange = false;
+
+function scheduleSync(){
+  if(!cfg.token){ setStatus('local'); return; }
+  pendingChange = true;
+  setStatus('syncing');
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(runSync, 1000);
+}
+
+async function runSync(opts){
+  if(syncing) return;
+  if(!cfg.token){ setStatus('local'); return; }
+  syncing = true; pendingChange = false; setStatus('syncing');
+  try{
+    if(!cfg.gistId){
+      await createGist();
+    }else{
+      // 1. fetch remote
+      const headers = { Authorization:'Bearer ' + cfg.token, Accept:'application/vnd.github+json' };
+      if(cfg.etag) headers['If-None-Match'] = cfg.etag;
+      const res = await fetch('https://api.github.com/gists/' + cfg.gistId, { headers, cache:'no-store' });
+      if(res.status === 304){
+        // remote unchanged
+      }else if(res.status === 404){
+        throw makeErr('gist_missing', 'Gist 不存在 (404)，可能被删除。请在设置里清空 Gist ID 重新创建。');
+      }else if(res.status === 401){
+        throw makeErr('auth', 'Token 失效或权限不足 (401)。请重新生成 token。');
+      }else if(res.status === 403){
+        const reset = res.headers.get('X-RateLimit-Reset');
+        throw makeErr('ratelimit', 'GitHub 限流 (403)' + (reset ? '，约 ' + new Date(reset*1000).toLocaleTimeString() + ' 后恢复' : ''));
+      }else if(!res.ok){
+        throw makeErr('fetch', '拉取失败 ' + res.status);
+      }else{
+        const json = await res.json();
+        cfg.etag = res.headers.get('etag');
+        const filename = pickGistFilename(json);
+        cfg.gistFilename = filename;
+        const content = json.files[filename] ? json.files[filename].content : null;
+        let remoteState = null;
+        if(content){
+          try{ remoteState = JSON.parse(content); }catch(e){ console.warn('remote JSON parse failed', e); }
+        }
+        if(remoteState){
+          STATE = mergeStates(STATE, remoteState);
+          localStorage.setItem(DATA_KEY, JSON.stringify(STATE));
+          if(currentOpenId){
+            // wipe + redraw highlights for the open drawer
+            redrawHighlightsInCurrentDrawer();
+            // reload notepad text if changed
+            reloadNotepadValue();
+          }
+        }
+      }
+      // 2. push current STATE
+      const body = JSON.stringify({
+        files: { [cfg.gistFilename || GIST_FILENAME_DEFAULT]: { content: JSON.stringify(STATE, null, 2) } }
+      });
+      const ph = { Authorization:'Bearer ' + cfg.token, Accept:'application/vnd.github+json', 'Content-Type':'application/json' };
+      const pres = await fetch('https://api.github.com/gists/' + cfg.gistId, { method:'PATCH', headers: ph, body });
+      if(!pres.ok) throw makeErr('push', '上传失败 ' + pres.status);
+      cfg.etag = pres.headers.get('etag');
+      cfg.lastFetchedAt = Date.now();
+      saveCfg();
+    }
+    setStatus('synced');
+    syncRetries = 0;
+  }catch(err){
+    console.warn('sync error', err);
+    setStatus('error', err.message || String(err));
+    if(err.code === 'auth') openSettings(err.message);
+    // backoff retry for transient errors
+    if(['fetch','push','ratelimit'].includes(err.code) && syncRetries < 4){
+      syncRetries++;
+      setTimeout(()=>{ syncing=false; runSync(); }, Math.min(60000, 1000 * Math.pow(2, syncRetries)));
+      return;
+    }
+  }finally{
+    syncing = false;
+    if(pendingChange) scheduleSync();
+  }
+}
+let syncRetries = 0;
+function makeErr(code, msg){ const e = new Error(msg); e.code = code; return e; }
+function pickGistFilename(gistJson){
+  if(cfg.gistFilename && gistJson.files[cfg.gistFilename]) return cfg.gistFilename;
+  if(gistJson.files[GIST_FILENAME_DEFAULT]) return GIST_FILENAME_DEFAULT;
+  // any .json file
+  const k = Object.keys(gistJson.files).find(n => n.endsWith('.json'));
+  return k || GIST_FILENAME_DEFAULT;
+}
+
+async function createGist(){
+  const headers = { Authorization:'Bearer ' + cfg.token, Accept:'application/vnd.github+json', 'Content-Type':'application/json' };
+  const body = JSON.stringify({
+    description: 'LLM 知识地图 · 高亮与笔记',
+    public: false,
+    files: { [GIST_FILENAME_DEFAULT]: { content: JSON.stringify(STATE, null, 2) } }
+  });
+  const res = await fetch('https://api.github.com/gists', { method:'POST', headers, body });
+  if(res.status === 401) throw makeErr('auth', 'Token 失效 (401)');
+  if(!res.ok){ const t = await res.text(); throw makeErr('create', '创建 Gist 失败 ' + res.status + ' ' + t.slice(0,160)); }
+  const json = await res.json();
+  cfg.gistId = json.id;
+  cfg.gistFilename = GIST_FILENAME_DEFAULT;
+  cfg.etag = res.headers.get('etag');
+  cfg.lastFetchedAt = Date.now();
+  saveCfg();
+}
+
+function redrawHighlightsInCurrentDrawer(){
+  if(!currentOpenId) return;
+  // re-render content from DETAILS (clears marks), then re-inject notepad + re-paint highlights
+  const d = DETAILS[currentOpenId]; if(!d) return;
+  // preserve notepad textarea value? Use STATE value (merged) instead.
+  dBody.innerHTML = d.body;
+  injectNotepadUI(currentOpenId);
+  renderHighlightsForCurrentNode(currentOpenId);
+}
+function reloadNotepadValue(){
+  if(!currentOpenId) return;
+  const ta = document.getElementById('notepad-' + currentOpenId);
+  if(!ta) return;
+  const ns = STATE.nodes[currentOpenId];
+  if(ns && ns.notepad) ta.value = ns.notepad.text || '';
+}
+
+// connectivity hooks
+window.addEventListener('online', () => { if(cfg.token) scheduleSync(); });
+syncDot.addEventListener('click', () => {
+  if(syncDot.classList.contains('error')) runSync();
+});
+
+// === settings panel wiring ===
+const settingsMask = document.getElementById('settings-mask');
+const cfgToken = document.getElementById('cfg-token');
+const cfgGistId = document.getElementById('cfg-gistid');
+const cfgStatus = document.getElementById('cfg-status');
+function openSettings(msg){
+  cfgToken.value = cfg.token || '';
+  cfgGistId.value = cfg.gistId || '';
+  cfgStatus.textContent = msg || '';
+  cfgStatus.className = 'cfg-status' + (msg ? ' error' : '');
+  settingsMask.classList.add('open');
+}
+function closeSettings(){ settingsMask.classList.remove('open'); }
+document.getElementById('sync-gear').addEventListener('click', () => openSettings());
+document.getElementById('cfg-close').addEventListener('click', closeSettings);
+settingsMask.addEventListener('click', e => { if(e.target === settingsMask) closeSettings(); });
+
+document.getElementById('cfg-save').addEventListener('click', async () => {
+  const t = cfgToken.value.trim();
+  const g = cfgGistId.value.trim();
+  if(!t){ cfgStatus.textContent = '请填 token'; cfgStatus.className='cfg-status error'; return; }
+  cfg.token = t;
+  cfg.gistId = g || null;
+  if(!g) cfg.etag = null;
+  saveCfg();
+  cfgStatus.textContent = '保存中…'; cfgStatus.className = 'cfg-status';
+  syncing = false; syncRetries = 0;
+  await runSync();
+  if(cfg.gistId){
+    cfgGistId.value = cfg.gistId;
+    cfgStatus.textContent = '已同步。Gist ID: ' + cfg.gistId;
+    cfgStatus.className = 'cfg-status ok';
+  }else{
+    cfgStatus.textContent = '同步未完成，看右上角圆点状态。';
+    cfgStatus.className = 'cfg-status error';
+  }
+});
+document.getElementById('cfg-test').addEventListener('click', async () => {
+  const t = cfgToken.value.trim();
+  if(!t){ cfgStatus.textContent = '请填 token'; cfgStatus.className='cfg-status error'; return; }
+  cfgStatus.textContent = '测试中…'; cfgStatus.className = 'cfg-status';
+  try{
+    const res = await fetch('https://api.github.com/user', { headers:{ Authorization:'Bearer '+t, Accept:'application/vnd.github+json' }});
+    if(res.ok){
+      const j = await res.json();
+      cfgStatus.textContent = '✓ Token 有效，登录为 ' + j.login;
+      cfgStatus.className = 'cfg-status ok';
+    }else if(res.status === 401){
+      cfgStatus.textContent = '✗ Token 无效 (401)';
+      cfgStatus.className = 'cfg-status error';
+    }else{
+      cfgStatus.textContent = '✗ 连接失败 ' + res.status;
+      cfgStatus.className = 'cfg-status error';
+    }
+  }catch(e){
+    cfgStatus.textContent = '✗ 网络错误：' + e.message;
+    cfgStatus.className = 'cfg-status error';
+  }
+});
+document.getElementById('cfg-pull').addEventListener('click', async () => {
+  if(!cfg.token || !cfg.gistId){ cfgStatus.textContent = '需先保存 token + gistId'; cfgStatus.className='cfg-status error'; return; }
+  cfgStatus.textContent = '拉取中…'; cfgStatus.className = 'cfg-status';
+  cfg.etag = null; saveCfg();   // force full fetch
+  syncing = false;
+  await runSync();
+  cfgStatus.textContent = '已拉取并合并';
+  cfgStatus.className = 'cfg-status ok';
+});
+document.getElementById('cfg-clear').addEventListener('click', () => {
+  if(!confirm('清除 token 和 Gist ID 配置？本地高亮/笔记不会被删，但停止同步。')) return;
+  cfg = {}; saveCfg();
+  cfgToken.value = ''; cfgGistId.value = '';
+  cfgStatus.textContent = '已清除';
+  cfgStatus.className = 'cfg-status';
+  setStatus('local');
+});
+
+// init sync status
+if(cfg.token){
+  setStatus('syncing');
+  // initial pull on load
+  cfg.etag = null;       // force fetch
+  saveCfg();
+  setTimeout(runSync, 200);
+}else{
+  setStatus('local');
+}
+
+/* ============================================================
+   12. 挂钩：进入/离开 drawer 时联动
+   ============================================================ */
+const _origRealOpen = window.openDetail;
+window.openDetail = function(id){
+  // flush previous drawer's notepad first (uses old currentOpenId)
+  flushNotepad();
+  hideToolbar(); hidePopover();
+  currentOpenId = id;
+  _origRealOpen(id);                  // sets dBody.innerHTML = d.body
+  injectNotepadUI(id);
+  renderHighlightsForCurrentNode(id);
+};
+
+// Additional cleanup listeners (existing close listeners still fire and close the drawer)
+function _afterCloseCleanup(){
+  flushNotepad();
+  hideToolbar(); hidePopover();
+  currentOpenId = null;
+}
+document.getElementById('d-close').addEventListener('click', _afterCloseCleanup);
+mask.addEventListener('click', _afterCloseCleanup);
+document.addEventListener('keydown', e => { if(e.key==='Escape') _afterCloseCleanup(); });
+</script>
+</body>
+</html>
