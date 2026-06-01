@@ -9,7 +9,7 @@
     --bg:#f4ece0; --paper:#fbf6ec; --ink:#2b2620; --ink-soft:#6a6155;
     --line:#d9cab3; --accent:#b8512a; --accent-soft:#e9d6c4;
     --c1:#b8512a; --c2:#3d6480; --c3:#5a7a3d; --c4:#b8862a;
-    --c5:#8a3d4a; --c6:#6a5a8a; --c7:#c46a3d;
+    --c5:#8a3d4a; --c6:#6a5a8a; --c7:#c46a3d; --c8:#3f7d73;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{
@@ -63,6 +63,7 @@
   .node.branch[data-c="5"]{border-left:4px solid var(--c5)}
   .node.branch[data-c="6"]{border-left:4px solid var(--c6)}
   .node.branch[data-c="7"]{border-left:4px solid var(--c7)}
+  .node.branch[data-c="8"]{border-left:4px solid var(--c8)}
   .node.leaf[data-c="1"]:hover{border-color:var(--c1)}
   .node.leaf[data-c="2"]:hover{border-color:var(--c2)}
   .node.leaf[data-c="3"]:hover{border-color:var(--c3)}
@@ -70,6 +71,7 @@
   .node.leaf[data-c="5"]:hover{border-color:var(--c5)}
   .node.leaf[data-c="6"]:hover{border-color:var(--c6)}
   .node.leaf[data-c="7"]:hover{border-color:var(--c7)}
+  .node.leaf[data-c="8"]:hover{border-color:var(--c8)}
 
   /* search + progress controls */
   .controls{display:flex;gap:16px;align-items:center;margin-top:18px;flex-wrap:wrap}
@@ -247,6 +249,7 @@
     <span><span class="legend-dot" style="background:var(--c5)"></span>能力边界</span>
     <span><span class="legend-dot" style="background:var(--c6)"></span>进阶概念</span>
     <span><span class="legend-dot" style="background:var(--c7)"></span>模型家族</span>
+    <span><span class="legend-dot" style="background:var(--c8)"></span>重点框架</span>
   </div>
 </header>
 
@@ -334,6 +337,12 @@
 const tree = {
   root: { id:'llm', title:'LLM', short:'大语言模型 · 本质:猜下一个词' },
   branches: [
+    { id:'b-overview', c:8, title:'重点框架', short:'一条逻辑线 + 简版导图',
+      children:[
+        { id:'ov-logic', title:'🧭 一条逻辑线', short:'从猜词讲到选型' },
+        { id:'ov-map', title:'🗺️ 简版思维导图', short:'7 大板块树形速览' },
+      ]
+    },
     { id:'b-train', c:3, title:'训练阶段', short:'先训练,才有这个模型',
       children:[
         { id:'params', title:'Parameters 参数', short:'几十亿~上万亿可调数字' },
@@ -468,7 +477,7 @@ tree.branches.forEach(b => {
 
 /* draw curves after layout settled */
 function drawCurves(){
-  const COLORS = {1:'#b8512a',2:'#3d6480',3:'#5a7a3d',4:'#b8862a',5:'#8a3d4a',6:'#6a5a8a',7:'#c46a3d'};
+  const COLORS = {1:'#b8512a',2:'#3d6480',3:'#5a7a3d',4:'#b8862a',5:'#8a3d4a',6:'#6a5a8a',7:'#c46a3d',8:'#3f7d73'};
   let svgInner = '';
   tree.branches.forEach(b => {
     // root → branch
@@ -494,6 +503,141 @@ requestAnimationFrame(()=>requestAnimationFrame(drawCurves));
    4. 详情数据 (每个 id 对应一张详细解释卡)
    ============================================================ */
 const DETAILS = {
+
+'b-overview':{
+  tag:'速览', en:'Key Framework · 重点框架', tagline:'把整张图浓缩成一条逻辑线 + 一张简版导图——先看这一页,再钻细节。',
+  body:`
+  <h3>一条逻辑线(从头讲到尾)</h3>
+  <blockquote>LLM 的一切,都从一句话长出来:<strong>它只会"猜下一个词"。</strong></blockquote>
+  <ol>
+    <li><strong>它怎么会猜的?——先训练。</strong>海量文本练猜词(预训练)→ 学会按指令答(SFT)→ 朝人类喜欢的方向调(RLHF);而"越大越强"不是玄学,是可预测的规律(Scaling Laws)。</li>
+    <li><strong>你发消息后第一步?——把文字变数字。</strong>切成 token(决定计费和上限)→ 查表变成有语义的向量(Embedding)。</li>
+    <li><strong>这串数字进了"大脑"怎么处理?——Transformer 架构。</strong>摊开一次看全 + 并行:词与词互相打听(Self-Attention)→ 各自消化(FFN)→ 贴顺序标签(位置编码)→ 叠几十层(多层堆叠),理解逐层加深。</li>
+    <li><strong>然后怎么吐字?——推理生成。</strong>每步输出的是一张概率表,不是一个词 → 从表里挑词(采样 vs 贪心,用 Temperature 调任性)→ 一次能看多少叫上下文窗口 → 能快速吐字靠 KV Cache(也是它又快又贵的原因)。</li>
+    <li><strong>用它要小心什么?——能力边界。</strong>会一本正经胡说(幻觉)、知识停在某天(知识截止)、能力到一定规模才突然冒出(涌现)、不会真算数(它在猜不在算)。</li>
+    <li><strong>怎么变强变实用?——进阶玩法。</strong>按需分诊省算力(MoE)、先打草稿再答(Reasoning)、能看图听声(多模态)、外挂知识库(RAG)、会调工具动手干活(Tool Use,Agent 的地基)。</li>
+    <li><strong>实战怎么选?——模型家族。</strong>认识 9 大主流家族,按 7 个维度(开源/规模/推理/多模态/上下文/价格/生态)判断,再按场景选型。</li>
+  </ol>
+  <p><strong>一句话收尾:</strong>训练给它本事 → 输入翻译成数字 → 架构层层理解 → 推理逐字生成 → 但有边界 → 用进阶手段补强 → 最后按需选型。</p>
+
+  <h3>简版思维导图</h3>
+  <pre>LLM · 本质=猜下一个词
+│
+├─ 1. 训练阶段(先有本事)
+│   ├ Parameters 参数 —— 几十亿~万亿个可调数字
+│   ├ Pre-training 预训练 —— 海量文本练猜词,得"基座"
+│   ├ SFT 指令微调 —— 学会按指令回答
+│   ├ RLHF 人类反馈 —— 朝人喜欢的方向调
+│   └ Scaling Laws 缩放定律 ★ —— 大就是强,且可预测
+│
+├─ 2. 输入处理(文字→数字)
+│   ├ Token 词元 —— 文本最小单位(计费/上限/算错)
+│   └ Embedding 向量嵌入 —— 语义地图,国王-男人+女人=王后
+│
+├─ 3. 核心架构(内部怎么理解)
+│   ├ Transformer —— 摊开看全+并行,所有大模型的地基
+│   ├ Self-Attention 自注意力 —— 词与词互相打听(Q/K/V、多头)
+│   ├ FFN 前馈网络 —— 各自消化思考
+│   ├ Positional Encoding —— 给词贴顺序标签
+│   └ 多层堆叠 —— 几十轮"讨论+消化"
+│
+├─ 4. 推理生成(怎么吐字)
+│   ├ Inference 推理 —— 参数冻结,实际生成
+│   ├ 概率分布 —— 输出是一张概率表
+│   ├ 采样 vs 贪心 —— 掷骰子 还是 选最高(含 Top-p)
+│   ├ Temperature 温度 —— 骰子有多任性
+│   ├ Context Window 上下文 —— 一次能看多少 token
+│   └ KV Cache 键值缓存 ★ —— 别重算前文,快又贵的原因
+│
+├─ 5. 能力边界(四个坑)
+│   ├ 幻觉 —— 一本正经地编
+│   ├ 知识截止 —— 冻结的旧照片
+│   ├ 涌现能力 —— 大到一定程度突然冒出
+│   └ 不会真算数 —— 它在猜不在算
+│
+├─ 6. 进阶概念(当代关键词)
+│   ├ MoE 混合专家 —— 大医院按需分诊
+│   ├ Reasoning 推理模型 —— 先打草稿再作答
+│   ├ Multimodal 多模态 —— 眼睛和耳朵
+│   ├ RAG 检索增强 —— 开卷考试
+│   └ Tool Use 工具调用 ★ —— 会用工具,Agent 的地基
+│
+└─ 7. 模型家族(怎么挑怎么用)
+    ├ 9 大主流家族 —— OpenAI/Claude/Gemini/Llama/...
+    ├ 7 个判断维度 —— 开源/规模/推理/多模态/上下文/价格/生态
+    └ 场景→选谁 —— 实战选型指南</pre>
+  <p style="color:var(--ink-soft);font-size:12.5px">★ = 后补的三个核心节点 · 点左侧任意分支可看每个概念的详解。</p>
+  `
+},
+
+'ov-logic':{
+  tag:'重点框架', en:'The Logic Line', tagline:'一条线把 7 大板块串起来:训练 → 输入 → 架构 → 推理 → 边界 → 进阶 → 选型。',
+  body:`
+  <blockquote>LLM 的一切,都从一句话长出来:<strong>它只会"猜下一个词"。</strong></blockquote>
+  <ol>
+    <li><strong>① 它怎么会猜的?——先训练。</strong>海量文本练猜词(预训练)→ 学会按指令答(SFT)→ 朝人类喜欢的方向调(RLHF);而"越大越强"不是玄学,是可预测的规律(Scaling Laws)。</li>
+    <li><strong>② 你发消息后第一步?——把文字变数字。</strong>切成 token(决定计费和上限)→ 查表变成有语义的向量(Embedding)。</li>
+    <li><strong>③ 这串数字进了"大脑"怎么处理?——Transformer 架构。</strong>摊开一次看全 + 并行:词与词互相打听(Self-Attention)→ 各自消化(FFN)→ 贴顺序标签(位置编码)→ 叠几十层(多层堆叠),理解逐层加深。</li>
+    <li><strong>④ 然后怎么吐字?——推理生成。</strong>输出是一张概率表,不是一个词 → 挑词(采样 vs 贪心 + Temperature)→ 一次能看多少叫上下文窗口 → 快速吐字靠 KV Cache。</li>
+    <li><strong>⑤ 用它要小心什么?——能力边界。</strong>幻觉、知识截止、涌现、不会真算数。</li>
+    <li><strong>⑥ 怎么变强变实用?——进阶玩法。</strong>MoE、Reasoning、多模态、RAG、Tool Use(Agent 地基)。</li>
+    <li><strong>⑦ 实战怎么选?——模型家族。</strong>9 大家族 × 7 个维度 × 场景选型。</li>
+  </ol>
+  <p><strong>一句话收尾:</strong>训练给它本事 → 输入翻译成数字 → 架构层层理解 → 推理逐字生成 → 但有边界 → 用进阶手段补强 → 最后按需选型。</p>
+  `
+},
+
+'ov-map':{
+  tag:'重点框架', en:'Condensed Mind Map', tagline:'整张图的树形速览,一屏看全 7 大板块。',
+  body:`
+  <pre>LLM · 本质=猜下一个词
+│
+├─ 1. 训练阶段(先有本事)
+│   ├ Parameters 参数 —— 几十亿~万亿个可调数字
+│   ├ Pre-training 预训练 —— 海量文本练猜词,得"基座"
+│   ├ SFT 指令微调 —— 学会按指令回答
+│   ├ RLHF 人类反馈 —— 朝人喜欢的方向调
+│   └ Scaling Laws 缩放定律 ★ —— 大就是强,且可预测
+│
+├─ 2. 输入处理(文字→数字)
+│   ├ Token 词元 —— 文本最小单位(计费/上限/算错)
+│   └ Embedding 向量嵌入 —— 语义地图,国王-男人+女人=王后
+│
+├─ 3. 核心架构(内部怎么理解)
+│   ├ Transformer —— 摊开看全+并行,所有大模型的地基
+│   ├ Self-Attention 自注意力 —— 词与词互相打听(Q/K/V、多头)
+│   ├ FFN 前馈网络 —— 各自消化思考
+│   ├ Positional Encoding —— 给词贴顺序标签
+│   └ 多层堆叠 —— 几十轮"讨论+消化"
+│
+├─ 4. 推理生成(怎么吐字)
+│   ├ Inference 推理 —— 参数冻结,实际生成
+│   ├ 概率分布 —— 输出是一张概率表
+│   ├ 采样 vs 贪心 —— 掷骰子 还是 选最高(含 Top-p)
+│   ├ Temperature 温度 —— 骰子有多任性
+│   ├ Context Window 上下文 —— 一次能看多少 token
+│   └ KV Cache 键值缓存 ★ —— 别重算前文,快又贵的原因
+│
+├─ 5. 能力边界(四个坑)
+│   ├ 幻觉 —— 一本正经地编
+│   ├ 知识截止 —— 冻结的旧照片
+│   ├ 涌现能力 —— 大到一定程度突然冒出
+│   └ 不会真算数 —— 它在猜不在算
+│
+├─ 6. 进阶概念(当代关键词)
+│   ├ MoE 混合专家 —— 大医院按需分诊
+│   ├ Reasoning 推理模型 —— 先打草稿再作答
+│   ├ Multimodal 多模态 —— 眼睛和耳朵
+│   ├ RAG 检索增强 —— 开卷考试
+│   └ Tool Use 工具调用 ★ —— 会用工具,Agent 的地基
+│
+└─ 7. 模型家族(怎么挑怎么用)
+    ├ 9 大主流家族 —— OpenAI/Claude/Gemini/Llama/...
+    ├ 7 个判断维度 —— 开源/规模/推理/多模态/上下文/价格/生态
+    └ 场景→选谁 —— 实战选型指南</pre>
+  <p style="color:var(--ink-soft);font-size:12.5px">★ = 后补的三个核心节点。</p>
+  `
+},
 
 llm: {
   tag:'根节点', en:'Large Language Model', tagline:'本质上只做一件事——根据前面的文字,猜下一个最可能的"词"。',
